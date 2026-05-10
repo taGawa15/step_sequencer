@@ -1,0 +1,199 @@
+.panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Desktop / tablet bottom panel is short and wide — 3 columns side by
+   side fits all three FX without scroll. */
+@media (min-width: 768px) {
+  .panel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+.fx {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 10px 8px;
+  background: var(--bg);
+}
+
+.fxHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fxName {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--fg-dim);
+  font-weight: 500;
+}
+
+.kbd {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--fg-dim);
+}
+
+.bigBtn {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  min-height: 36px;
+  transition: background-color 80ms, color 80ms, border-color 80ms;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.bigBtn:hover { background: var(--line); }
+
+.bigBtnOn {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  animation: pulse 0.6s ease-in-out infinite;
+}
+
+.bigBtnOn:hover { background: var(--accent); color: var(--bg); }
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 3px rgba(255, 90, 31, 0.2); }
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.choices {
+  display: flex;
+  gap: 2px;
+}
+
+.choice {
+  font: inherit;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  padding: 3px 6px;
+  cursor: pointer;
+  border-radius: 2px;
+  min-height: 24px;
+  flex: 1;
+  min-width: 0;
+}
+
+.choice:hover { color: var(--fg); border-color: var(--line-strong); }
+
+.choiceOn {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.modeChoices {
+  display: flex;
+  gap: 2px;
+}
+
+.modeBtn {
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  padding: 3px 6px;
+  cursor: pointer;
+  border-radius: 2px;
+  min-height: 24px;
+  min-width: 32px;
+}
+
+.modeBtn:hover { color: var(--fg); border-color: var(--line-strong); }
+
+.modeBtnOn {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.depthRow {
+  display: grid;
+  grid-template-columns: 38px 1fr 36px;
+  align-items: center;
+  gap: 6px;
+}
+
+.rowLabel {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+}
+
+.slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 16px;
+  outline: none;
+  margin: 0;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  margin-top: -6px;
+  cursor: pointer;
+}
+
+.value {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  text-align: right;
+}
+
+@media (max-width: 767px) {
+  .panel { padding: 8px 12px; gap: 6px; }
+  .fx { padding: 5px 8px 7px; }
+  .bigBtn { padding: 8px; font-size: 10px; }
+}

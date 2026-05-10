@@ -114,7 +114,8 @@
   gap: 6px;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  /* Strict no-scroll — only first N samples are visible */
+  overflow: hidden;
 }
 
 .empty {

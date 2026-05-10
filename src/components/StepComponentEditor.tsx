@@ -20,10 +20,17 @@ import {
 } from '../constants';
 import {
   type ScaleDef,
-  formatNote,
-  octavesInRange,
-  parseNote,
 } from '../scales';
+import {
+  ROOTS,
+  SCALE_DEFS,
+  buildNote,
+  splitNote,
+  transposeNote,
+  type RootId,
+  type ScaleId,
+} from '../utils/musicTheory';
+import { MiniKeyboard } from './MiniKeyboard';
 import type {
   DrumStep,
   NoteDuration,
@@ -43,6 +50,15 @@ interface Props {
   scale: ScaleDef;
   /** Defaults to 'all'. 'note' = pitch+velocity only; 'step' = components+locks. */
   mode?: EditorMode;
+  /** Note-editor scale state (root / scale / lock). */
+  noteRoot: RootId;
+  noteScale: ScaleId;
+  noteScaleLock: boolean;
+  onSetNoteRoot: (r: RootId) => void;
+  onSetNoteScale: (s: ScaleId) => void;
+  onToggleNoteScaleLock: () => void;
+  /** Optional preview when a note changes — fed by Sequencer. */
+  onPreviewNote?: (trackId: 'bass' | 'lead', note: string) => void;
   onUpdateDrumStep: (patch: Partial<DrumStep>) => void;
   onUpdateSynthStep: (patch: Partial<SynthStep>) => void;
   onUpdateComponents: (patch: Partial<StepComponents>) => void;
@@ -54,6 +70,13 @@ export const StepComponentEditor = ({
   resolved,
   scale,
   mode = 'all',
+  noteRoot,
+  noteScale,
+  noteScaleLock,
+  onSetNoteRoot,
+  onSetNoteScale,
+  onToggleNoteScaleLock,
+  onPreviewNote,
   onUpdateDrumStep,
   onUpdateSynthStep,
   onUpdateComponents,
@@ -90,8 +113,18 @@ export const StepComponentEditor = ({
         <PitchSection
           step={resolved.step}
           track={resolved.track}
-          scale={scale}
-          onUpdate={onUpdateSynthStep}
+          root={noteRoot}
+          scale={noteScale}
+          scaleLock={noteScaleLock}
+          onSetRoot={onSetNoteRoot}
+          onSetScale={onSetNoteScale}
+          onToggleLock={onToggleNoteScaleLock}
+          onUpdate={(patch) => {
+            onUpdateSynthStep(patch);
+            if (patch.note && onPreviewNote) {
+              onPreviewNote(resolved.trackId, patch.note);
+            }
+          }}
         />
       )}
 
@@ -209,43 +242,87 @@ const Header = ({
 const PitchSection = ({
   step,
   track,
+  root,
   scale,
+  scaleLock,
+  onSetRoot,
+  onSetScale,
+  onToggleLock,
   onUpdate,
 }: {
   step: SynthStep;
   track: SynthTrackDef;
-  scale: ScaleDef;
+  root: RootId;
+  scale: ScaleId;
+  scaleLock: boolean;
+  onSetRoot: (r: RootId) => void;
+  onSetScale: (s: ScaleId) => void;
+  onToggleLock: () => void;
   onUpdate: (patch: Partial<SynthStep>) => void;
 }) => {
-  const { name: currentName, octave: currentOctave } = parseNote(step.note);
-  const octaves = octavesInRange(track.octaveRange);
+  const { octave: currentOctave } = splitNote(step.note);
+  const setOctave = (o: number) => {
+    const { pc } = splitNote(step.note);
+    onUpdate({ note: buildNote(pc, o) });
+  };
+  const nudge = (semis: number) => onUpdate({ note: transposeNote(step.note, semis) });
 
   return (
     <div className={styles.section}>
-      <Row label="NOTE">
-        <Choices>
-          {scale.noteNames.map((n) => (
-            <Choice
-              key={n}
-              active={n === currentName}
-              onClick={() => onUpdate({ note: formatNote(n, currentOctave) })}
-              label={n}
-            />
+      <div className={styles.scaleRow}>
+        <span className={styles.rowLabel}>SCALE</span>
+        <select
+          className={styles.miniSelect}
+          value={root}
+          onChange={(e) => onSetRoot(e.target.value as RootId)}
+          aria-label="root"
+        >
+          {ROOTS.map((r) => (
+            <option key={r} value={r}>{r}</option>
           ))}
-        </Choices>
-      </Row>
-      <Row label="OCT">
-        <Choices>
-          {octaves.map((o) => (
-            <Choice
-              key={o}
-              active={o === currentOctave}
-              onClick={() => onUpdate({ note: formatNote(currentName, o) })}
-              label={String(o)}
-            />
+        </select>
+        <select
+          className={styles.miniSelect}
+          value={scale}
+          onChange={(e) => onSetScale(e.target.value as ScaleId)}
+          aria-label="scale"
+        >
+          {Object.entries(SCALE_DEFS).map(([id, def]) => (
+            <option key={id} value={id}>{def.label}</option>
           ))}
-        </Choices>
-      </Row>
+        </select>
+        <button
+          type="button"
+          className={`${styles.lockBtn} ${scaleLock ? styles.lockBtnOn : ''}`}
+          onClick={onToggleLock}
+          aria-pressed={scaleLock}
+          title="Scale lock"
+        >
+          {scaleLock ? '🔒' : '🔓'}
+        </button>
+      </div>
+
+      <MiniKeyboard
+        note={step.note}
+        octave={currentOctave}
+        root={root}
+        scale={scale}
+        scaleLock={scaleLock}
+        octaveRange={track.octaveRange}
+        onPickNote={(n) => onUpdate({ note: n })}
+        onOctaveDown={() => setOctave(Math.max(track.octaveRange[0], currentOctave - 1))}
+        onOctaveUp={() => setOctave(Math.min(track.octaveRange[1], currentOctave + 1))}
+      />
+
+      <div className={styles.nudgeRow}>
+        <span className={styles.rowLabel}>NUDGE</span>
+        <button type="button" className={styles.nudgeBtn} onClick={() => nudge(-12)} aria-label="oct -1">OCT−</button>
+        <button type="button" className={styles.nudgeBtn} onClick={() => nudge(-1)} aria-label="note -1">−1</button>
+        <span className={styles.nudgeNote}>{step.note}</span>
+        <button type="button" className={styles.nudgeBtn} onClick={() => nudge(1)} aria-label="note +1">+1</button>
+        <button type="button" className={styles.nudgeBtn} onClick={() => nudge(12)} aria-label="oct +1">OCT+</button>
+      </div>
+
       <Row label="LEN">
         <Choices>
           {NOTE_DURATIONS.map((d) => (

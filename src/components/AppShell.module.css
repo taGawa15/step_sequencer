@@ -50,8 +50,9 @@
 .leftCol {
   grid-area: leftCol;
   border-right: 1px solid var(--line);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
 }
 
 .center {
@@ -59,13 +60,16 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
 
 .rightCol {
   grid-area: rightCol;
   border-left: 1px solid var(--line);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
 }
 
 .bottom {
@@ -75,6 +79,7 @@
   z-index: 2;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   overflow: hidden;
+  min-height: 0;
 }
 
 /* ── tablet (768px+) ── two columns ────────────────────────────────── */

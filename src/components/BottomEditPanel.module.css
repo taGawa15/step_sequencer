@@ -11,7 +11,18 @@
   gap: 0;
   border-bottom: 1px solid var(--line);
   background: var(--bg);
-  overflow-x: auto;
+  /* Strict no-scroll. Tabs share width via flex:1 on mobile so they
+     always fit without horizontal scroll. */
+  overflow: hidden;
+  min-width: 0;
+}
+
+.labelFull { display: inline; }
+.labelShort { display: none; }
+
+@media (max-width: 767px) {
+  .labelFull { display: none; }
+  .labelShort { display: inline; }
 }
 
 .tab {
@@ -41,18 +52,20 @@
 }
 
 .body {
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* Strict no-scroll — content must fit. Per-tab content uses tabs /
+     compact layouts to avoid overflow. */
+  overflow: hidden;
   min-height: 0;
+  min-width: 0;
 }
 
-/* Distribute tabs evenly when there are many (mobile 5 tabs) */
+/* Distribute tabs evenly. With 8 tabs we need very tight padding. */
 @media (max-width: 767px) {
   .tab {
     flex: 1 1 0;
     min-width: 0;
-    padding: 12px 6px;
+    padding: 10px 2px;
     font-size: 9px;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.12em;
   }
 }

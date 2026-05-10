@@ -63,6 +63,11 @@ export const SHORTCUTS: readonly ShortcutDescriptor[] = [
   // ── Sample ──
   { id: 'sample.recordToggle', label: 'Record start/stop', hint: 'M', codes: ['KeyM'], action: 'sample.recordToggle', group: 'sample' },
 
+  // ── Performance FX ──
+  { id: 'fx.beatRepeat', label: 'Beat Repeat', hint: 'G', codes: ['KeyG'], action: 'fx.beatRepeat', group: 'performance' },
+  { id: 'fx.stutter', label: 'Stutter Gate', hint: 'H', codes: ['KeyH'], action: 'fx.stutter', group: 'performance' },
+  { id: 'fx.tapeStop', label: 'Tape Stop', hint: 'J', codes: ['KeyJ'], action: 'fx.tapeStop', group: 'performance' },
+
   // ── Clipboard ──
   { id: 'clipboard.copy', label: 'Copy current loop', hint: `${cmdLabel}C`, codes: ['KeyC'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.copy', group: 'clipboard' },
   { id: 'clipboard.paste', label: 'Paste at cursor', hint: `${cmdLabel}V`, codes: ['KeyV'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.paste', group: 'clipboard' },

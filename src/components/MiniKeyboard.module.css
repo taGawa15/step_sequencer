@@ -1,0 +1,154 @@
+.wrap {
+  --bk-w: 18px;
+  --bk-h: 60%;
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.octBtn {
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.octBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.octBtn:hover:not(:disabled) { background: var(--line); }
+
+.octReadout {
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+  text-align: center;
+  grid-column: 2;
+  /* Sit above the keyboard via grid placement; keep the kbd own row */
+  display: none;
+}
+
+/* Keyboard area */
+
+.kbd {
+  position: relative;
+  width: 100%;
+  height: 56px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.whiteRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  height: 100%;
+  width: 100%;
+}
+
+.whiteKey {
+  font: inherit;
+  position: relative;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 0 0 3px 3px;
+  cursor: pointer;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
+  color: var(--fg-dim);
+}
+
+.whiteKey:hover:not(:disabled) {
+  background: var(--line-soft);
+}
+
+.whiteKey:disabled {
+  cursor: not-allowed;
+}
+
+.whiteSelected {
+  background: var(--accent) !important;
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.keyLabel {
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.blackRow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.blackKey {
+  position: absolute;
+  top: 0;
+  width: var(--bk-w);
+  height: var(--bk-h);
+  background: var(--fg);
+  border: 1px solid var(--fg);
+  border-radius: 0 0 2px 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+}
+
+.blackKey:hover:not(:disabled) {
+  background: #2a2a2a;
+}
+
+.blackSelected {
+  background: var(--accent) !important;
+  border-color: var(--accent);
+}
+
+.blackKey:disabled {
+  cursor: not-allowed;
+}
+
+/* Scale dimming */
+
+.outScale.whiteKey {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg),
+    var(--bg) 4px,
+    var(--line-soft) 4px,
+    var(--line-soft) 6px
+  );
+}
+
+.outScale.blackKey {
+  opacity: 0.35;
+}
+
+.outScale.whiteKey:disabled,
+.outScale.blackKey:disabled {
+  opacity: 0.2;
+}
+
+/* Mobile shrinks black keys */
+@media (max-width: 767px) {
+  .wrap { --bk-w: 14px; }
+  .kbd { height: 50px; }
+  .keyLabel { font-size: 7px; }
+}

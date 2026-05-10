@@ -45,6 +45,9 @@ export type ShortcutAction =
   | 'fx.delayToggle'
   | 'fx.reverbToggle'
   | 'sample.recordToggle'
+  | 'fx.beatRepeat'
+  | 'fx.stutter'
+  | 'fx.tapeStop'
   | 'help.toggle';
 
 export interface ShortcutDescriptor {

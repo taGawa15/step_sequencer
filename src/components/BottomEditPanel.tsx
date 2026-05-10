@@ -8,6 +8,7 @@ export type BottomTab =
   | 'note'
   | 'step'
   | 'fx'
+  | 'perf'
   | 'snap'
   | 'timeline'
   | 'sample';
@@ -16,19 +17,33 @@ const TAB_LABEL: Record<BottomTab, string> = {
   mixer: 'MIXER',
   note: 'NOTE',
   step: 'STEP FX',
-  fx: 'MASTER FX',
+  fx: 'FX MAIN',
+  perf: 'FX PERF',
   snap: 'SNAP',
   timeline: 'TIMELINE',
   sample: 'SAMPLE',
 };
 
+/** Compact labels used on mobile so 8 tabs fit without overflow. */
+const TAB_LABEL_MOBILE: Record<BottomTab, string> = {
+  mixer: 'MIX',
+  note: 'NOTE',
+  step: 'STEP',
+  fx: 'FX',
+  perf: 'PERF',
+  snap: 'SNAP',
+  timeline: 'TL',
+  sample: 'SMPL',
+};
+
 const TABS_BY_VIEWPORT: Record<Viewport, BottomTab[]> = {
-  // Desktop side columns already host mixer (left) and fx/snap (right) so
-  // the bottom panel carries step-edit + new feature tabs.
-  desktop: ['note', 'step', 'timeline', 'sample'],
-  tablet: ['mixer', 'note', 'step', 'timeline', 'sample'],
-  // Mobile has no side columns — everything lives in the bottom sheet.
-  mobile: ['mixer', 'note', 'step', 'fx', 'snap', 'timeline', 'sample'],
+  // Desktop side columns already host mixer (left) and fx (right) so
+  // the bottom panel carries step-edit + clipboard + perf-FX tabs.
+  desktop: ['note', 'step', 'timeline', 'perf', 'sample'],
+  tablet: ['mixer', 'note', 'step', 'timeline', 'perf', 'sample'],
+  // Mobile has no side columns — split FX into MAIN / PERF tabs to keep
+  // each tab content scroll-free.
+  mobile: ['mixer', 'note', 'step', 'fx', 'perf', 'snap', 'timeline', 'sample'],
 };
 
 interface UIState {
@@ -97,7 +112,8 @@ export const BottomEditPanel = ({ viewport, noteTabEnabled, tabContent }: Props)
             className={`${styles.tab} ${t === tab ? styles.tabActive : ''}`}
             onClick={() => setTab(t)}
           >
-            {TAB_LABEL[t]}
+            <span className={styles.labelFull}>{TAB_LABEL[t]}</span>
+            <span className={styles.labelShort}>{TAB_LABEL_MOBILE[t]}</span>
           </button>
         ))}
       </div>

@@ -97,7 +97,80 @@
 .section {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+/* Scale / Root / Lock row above the mini keyboard */
+.scaleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+
+.miniSelect {
+  font: inherit;
+  font-size: 11px;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  padding: 3px 6px;
+  border-radius: 2px;
+  min-width: 0;
+}
+
+.lockBtn {
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  width: 28px;
+  height: 26px;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
+}
+
+.lockBtnOn {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+/* Nudge row */
+.nudgeRow {
+  display: flex;
+  align-items: center;
   gap: 4px;
+  min-height: 26px;
+}
+
+.nudgeBtn {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  padding: 3px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+  min-height: 24px;
+}
+
+.nudgeBtn:hover {
+  color: var(--fg);
+  border-color: var(--line-strong);
+}
+
+.nudgeNote {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  min-width: 36px;
+  text-align: center;
+  font-weight: 500;
 }
 
 .row {

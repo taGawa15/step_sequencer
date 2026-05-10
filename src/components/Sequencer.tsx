@@ -31,6 +31,8 @@ import { useLoopLength } from '../hooks/useLoopLength';
 import { useTimelineSlots } from '../hooks/useTimelineSlots';
 import { useMicSampler } from '../hooks/useMicSampler';
 import { useTimelineClipboard } from '../hooks/useTimelineClipboard';
+import { useNoteEditor } from '../hooks/useNoteEditor';
+import { usePerformanceFx } from '../hooks/usePerformanceFx';
 import { useKeyboardShortcuts, type ShortcutHandlerMap } from '../hooks/useKeyboardShortcuts';
 import {
   createSamplePlayerFromUrl,
@@ -49,8 +51,11 @@ import { TimelinePanel } from './TimelinePanel';
 import { MicSamplingPanel } from './MicSamplingPanel';
 import { KeyboardHelpModal } from './KeyboardHelpModal';
 import { CopyPasteControls } from './CopyPasteControls';
+import { PerformanceFxPanel } from './PerformanceFxPanel';
 import { BottomEditPanel, type BottomTab } from './BottomEditPanel';
-import { LOOP_LENGTHS } from '../constants';
+import { LOOP_LENGTHS, DRUM_TRACKS, SYNTH_TRACKS } from '../constants';
+import { NEUTRAL_PLOCKS } from '../audio/instruments';
+import * as Tone from 'tone';
 
 export const Sequencer = () => {
   const {
@@ -74,6 +79,7 @@ export const Sequencer = () => {
   const viewport = useViewport();
   const loop = useLoopLength();
   const sampler = useMicSampler();
+  const noteUI = useNoteEditor();
 
   // ── Sample players ─────────────────────────────────────────────────
   // SamplePlayers are created once per recorded sample and connected to
@@ -291,6 +297,63 @@ export const Sequencer = () => {
     [loop],
   );
 
+  // ── Performance FX (Beat Repeat / Stutter Gate / Tape Stop) ───────
+  // The Beat Repeat tick re-fires whatever's on the current step right now.
+  const onBeatRepeatTick = useCallback(() => {
+    if (!audioGraph) return;
+    const step = currentStep < 0 ? 0 : currentStep;
+    const time = Tone.now() + 0.005;
+    for (const t of DRUM_TRACKS) {
+      if (mutes[t.id]) continue;
+      const dStep = pattern.drums[t.id][step];
+      if (!dStep?.active) continue;
+      audioGraph.voices.drums[t.id].trigger({
+        time,
+        velocity: dStep.velocity,
+        plocks: NEUTRAL_PLOCKS,
+      });
+    }
+    for (const t of SYNTH_TRACKS) {
+      if (mutes[t.id]) continue;
+      const sStep = pattern.synths[t.id][step];
+      if (!sStep?.active) continue;
+      audioGraph.voices.synths[t.id].trigger({
+        note: sStep.note,
+        duration: sStep.duration,
+        time,
+        velocity: sStep.velocity,
+        plocks: NEUTRAL_PLOCKS,
+      });
+    }
+  }, [audioGraph, currentStep, pattern, mutes]);
+
+  const perfFx = usePerformanceFx({ onBeatRepeatTick });
+
+  // Combined panic — original engine panic + FX panic.
+  const panicAll = useCallback(() => {
+    perfFx.panic();
+    panic();
+  }, [panic, perfFx]);
+
+  // Note preview: short non-step trigger of the synth voice on note change.
+  const handlePreviewNote = useCallback(
+    (trackId: 'bass' | 'lead', note: string) => {
+      if (!audioGraph) return;
+      try {
+        audioGraph.voices.synths[trackId].trigger({
+          note,
+          duration: '8n',
+          time: Tone.now() + 0.01,
+          velocity: 0.4,
+          plocks: NEUTRAL_PLOCKS,
+        });
+      } catch {
+        /* ignore failed previews (e.g. AC suspended) */
+      }
+    },
+    [audioGraph],
+  );
+
   // ── Keyboard shortcuts ────────────────────────────────────────────
   const togglePlay = useCallback(() => {
     if (isPlaying) stop();
@@ -300,7 +363,7 @@ export const Sequencer = () => {
   const handlers = useMemo<ShortcutHandlerMap>(
     () => ({
       'transport.toggle': togglePlay,
-      'transport.panic': panic,
+      'transport.panic': panicAll,
       'transport.toggleSelected': handleToggleActiveOnSelected,
       'bpm.up': () => setBpm((b) => clamp(b + 1, MIN_BPM, MAX_BPM)),
       'bpm.down': () => setBpm((b) => clamp(b - 1, MIN_BPM, MAX_BPM)),
@@ -351,10 +414,14 @@ export const Sequencer = () => {
       'clipboard.pasteRepeat': () => clipboard.pasteRepeatFill(),
       'clipboard.duplicate': () => clipboard.duplicateAppend(),
       'clipboard.undo': () => clipboard.undo(),
+      // Performance FX
+      'fx.beatRepeat': perfFx.toggleBeatRepeat,
+      'fx.stutter': perfFx.toggleStutter,
+      'fx.tapeStop': perfFx.triggerTapeStop,
     }),
     [
       togglePlay,
-      panic,
+      panicAll,
       handleToggleActiveOnSelected,
       loop,
       timeline,
@@ -363,6 +430,7 @@ export const Sequencer = () => {
       selection?.stepIndex,
       stepLoop,
       clipboard,
+      perfFx,
     ],
   );
 
@@ -401,7 +469,7 @@ export const Sequencer = () => {
       onSetDelay={performance.setDelay}
       onSetReverb={performance.setReverb}
       onSetCompressor={performance.setCompressor}
-      onPanic={panic}
+      onPanic={panicAll}
     >
       {viewport !== 'mobile' && (
         <SnapshotControls
@@ -421,6 +489,13 @@ export const Sequencer = () => {
       resolved={resolved}
       mode="note"
       scale={getScale(DEFAULT_SCALE_ID)}
+      noteRoot={noteUI.root}
+      noteScale={noteUI.scale}
+      noteScaleLock={noteUI.scaleLock}
+      onSetNoteRoot={noteUI.setRoot}
+      onSetNoteScale={noteUI.setScale}
+      onToggleNoteScaleLock={noteUI.toggleScaleLock}
+      onPreviewNote={handlePreviewNote}
       onUpdateDrumStep={handleUpdateDrumStep}
       onUpdateSynthStep={handleUpdateSynthStep}
       onUpdateComponents={handleUpdateComponents}
@@ -434,11 +509,40 @@ export const Sequencer = () => {
       resolved={resolved}
       mode="step"
       scale={getScale(DEFAULT_SCALE_ID)}
+      noteRoot={noteUI.root}
+      noteScale={noteUI.scale}
+      noteScaleLock={noteUI.scaleLock}
+      onSetNoteRoot={noteUI.setRoot}
+      onSetNoteScale={noteUI.setScale}
+      onToggleNoteScaleLock={noteUI.toggleScaleLock}
       onUpdateDrumStep={handleUpdateDrumStep}
       onUpdateSynthStep={handleUpdateSynthStep}
       onUpdateComponents={handleUpdateComponents}
       onResetComponents={handleResetComponents}
       onToggleActive={handleToggleActiveOnSelected}
+    />
+  );
+
+  const perfFxPanel = (
+    <PerformanceFxPanel
+      state={perfFx.state}
+      beatActive={perfFx.beatActive}
+      stutterActive={perfFx.stutterActive}
+      tapeActive={perfFx.tapeActive}
+      onSetBeatRate={perfFx.setBeatRepeatRate}
+      onSetBeatMode={perfFx.setBeatRepeatMode}
+      onToggleBeat={perfFx.toggleBeatRepeat}
+      onStartBeat={perfFx.startBeatRepeat}
+      onStopBeat={perfFx.stopBeatRepeat}
+      onSetStutterRate={perfFx.setStutterRate}
+      onSetStutterDepth={perfFx.setStutterDepth}
+      onSetStutterMode={perfFx.setStutterMode}
+      onToggleStutter={perfFx.toggleStutter}
+      onStartStutter={perfFx.startStutter}
+      onStopStutter={perfFx.stopStutter}
+      onSetTapeTime={perfFx.setTapeStopTime}
+      onSetTapeMode={perfFx.setTapeStopMode}
+      onTriggerTape={perfFx.triggerTapeStop}
     />
   );
 
@@ -500,6 +604,7 @@ export const Sequencer = () => {
     note: noteEditor,
     step: stepEditor,
     fx: performanceContent,
+    perf: perfFxPanel,
     snap: snapshotsStandalone,
     timeline: timelinePanel,
     sample: samplePanel,

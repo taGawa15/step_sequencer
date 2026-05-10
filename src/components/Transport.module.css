@@ -1,0 +1,84 @@
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+}
+
+.button {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 12px 22px;
+  cursor: pointer;
+  color: var(--fg);
+  border-radius: 2px;
+  transition: background-color 80ms ease, color 80ms ease, border-color 80ms ease;
+  min-width: 96px;
+}
+
+.button:hover {
+  background: var(--line-soft);
+  border-color: var(--line-strong);
+}
+
+.primary {
+  border-color: var(--fg);
+}
+
+.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.bpm {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.bpmLabel {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--fg-dim);
+}
+
+.bpmInput {
+  width: 72px;
+  font: inherit;
+  font-size: 28px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 2px 0;
+  text-align: right;
+  color: var(--fg);
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.bpmInput::-webkit-outer-spin-button,
+.bpmInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.bpmInput:focus {
+  border-color: var(--fg);
+}

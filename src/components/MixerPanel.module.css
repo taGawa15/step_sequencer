@@ -1,0 +1,208 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.legend {
+  font-size: 8px;
+  letter-spacing: 0.22em;
+  color: var(--fg-dim);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Default (desktop narrow column): 3-row stacked layout ────────── */
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 24px;
+  grid-template-areas:
+    'name mute'
+    'dly dly'
+    'rev rev';
+  align-items: center;
+  gap: 2px 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.trackName { grid-area: name; }
+.mute      { grid-area: mute; }
+.row > .send:nth-of-type(1) { grid-area: dly; }
+.row > .send:nth-of-type(2) { grid-area: rev; }
+
+.trackName {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  font-weight: 500;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.mute {
+  width: 24px;
+  height: 24px;
+  font: inherit;
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 2px;
+  touch-action: manipulation;
+  transition: background-color 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+
+.mute:hover { color: var(--fg); border-color: var(--line-strong); }
+
+.muteOn {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.send {
+  display: grid;
+  grid-template-columns: 22px 1fr 28px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sendLabel {
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+}
+
+.sendValue {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  text-align: right;
+}
+
+.slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  margin-top: -7px;
+  cursor: pointer;
+}
+
+.slider::-moz-range-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+/* ── Tablet MIXER tab: single-row layout, compact ─────────────────── */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .list { gap: 1px; }
+  .row {
+    grid-template-columns: minmax(56px, 1fr) 26px 2fr 2fr;
+    grid-template-areas: 'name mute dly rev';
+    gap: 8px;
+    padding: 1px 0;
+  }
+  .mute {
+    width: 24px;
+    height: 24px;
+  }
+  .send {
+    grid-template-columns: 22px 1fr 28px;
+    gap: 4px;
+  }
+  .slider { height: 14px; }
+}
+
+/* ── Mobile MIXER tab: ultra-compact single-row, must fit 8 tracks ── */
+
+@media (max-width: 767px) {
+  .list { gap: 2px; }
+  .row {
+    grid-template-columns: minmax(44px, 0.7fr) 28px 2fr 2fr;
+    grid-template-areas: 'name mute dly rev';
+    gap: 6px;
+    padding: 2px 0;
+  }
+  .trackName { font-size: 9px; letter-spacing: 0.12em; }
+  .mute {
+    width: 28px;
+    height: 28px;
+    font-size: 9px;
+  }
+  .send {
+    grid-template-columns: 18px 1fr 26px;
+    gap: 3px;
+  }
+  .sendLabel { font-size: 8px; }
+  .sendValue { font-size: 9px; }
+  .slider { height: 14px; }
+  .slider::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -6px; }
+  .slider::-moz-range-thumb { width: 12px; height: 12px; }
+}

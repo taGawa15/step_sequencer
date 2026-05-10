@@ -1,0 +1,58 @@
+.panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.tabBar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  overflow-x: auto;
+}
+
+.tab {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-dim);
+  padding: 14px 18px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px; /* mobile touch target */
+  flex: 0 0 auto;
+  touch-action: manipulation;
+  transition: color 80ms ease, border-color 80ms ease;
+}
+
+.tab:hover {
+  color: var(--fg);
+}
+
+.tabActive {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* Distribute tabs evenly when there are many (mobile 5 tabs) */
+@media (max-width: 767px) {
+  .tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 12px 6px;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+  }
+}

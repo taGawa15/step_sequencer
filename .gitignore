@@ -1,0 +1,28 @@
+# ── 依存ライブラリ（npm install で復元できる） ──
+node_modules/
+
+# ── ビルド出力（npm run build で再生成できる） ──
+dist/
+*.tsbuildinfo
+
+# ── Mac の隠しファイル ──
+.DS_Store
+
+# ── エディタ / IDE ──
+.vscode/
+.idea/
+
+# ── Finder が間違って作った「選択項目から作成したフォルダ」（中身は node_modules の破片） ──
+選択項目から作成したフォルダ/
+選択項目から作成したフォルダ2/
+選択項目から作成したフォルダ3/
+
+# ── 環境変数 / 鍵（誤って含めない） ──
+.env
+.env.local
+.env.*.local
+
+# ── ログ ──
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -1,0 +1,89 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Fixed-viewport application shell.
+   100dvh + grid areas + overflow:hidden so page-level scrolling never
+   appears. Internal panels can scroll if needed.
+   ────────────────────────────────────────────────────────────────────── */
+
+.shell {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+
+  display: grid;
+  /* Mobile default: single column. Bottom row is capped so a tall tab
+     (e.g. master FX) cannot eat the whole viewport. */
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr min(56dvh, 480px);
+  grid-template-areas:
+    'transport'
+    'center'
+    'bottom';
+
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.transport {
+  grid-area: transport;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  z-index: 3;
+}
+
+.leftCol {
+  grid-area: leftCol;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.center {
+  grid-area: center;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.rightCol {
+  grid-area: rightCol;
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.bottom {
+  grid-area: bottom;
+  border-top: 1px solid var(--line);
+  background: var(--line-soft);
+  z-index: 2;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow: hidden;
+}
+
+/* ── tablet (768px+) ── two columns ────────────────────────────────── */
+@media (min-width: 768px) {
+  .shell {
+    grid-template-columns: 1fr clamp(260px, 28vw, 340px);
+    grid-template-rows: auto 1fr min(34dvh, 300px);
+    grid-template-areas:
+      'transport transport'
+      'center    rightCol'
+      'bottom    bottom';
+  }
+}
+
+/* ── desktop (1024px+) ── three columns ────────────────────────────── */
+@media (min-width: 1024px) {
+  .shell {
+    grid-template-columns:
+      clamp(220px, 18vw, 280px)
+      1fr
+      clamp(280px, 24vw, 340px);
+    grid-template-rows: auto 1fr min(32dvh, 260px);
+    grid-template-areas:
+      'transport transport transport'
+      'leftCol   center    rightCol'
+      'bottom    bottom    bottom';
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Read(//Users/tagawa/.nvm/versions/**)",
+      "Read(//Users/tagawa/.volta/**)",
+      "Read(//usr/local/n/versions/**)",
+      "Bash(command -v node npm npx)",
+      "Read(//Users/tagawa/**)",
+      "Bash(mdfind -name 'node')",
+      "Bash(mdfind -name 'npm')",
+      "Bash(command -v brew)",
+      "Bash(curl -fsSL https://nodejs.org/dist/index.json)",
+      "Bash(python3 -c ' *)",
+      "Bash(export PATH=\"$HOME/.local/node/bin:$PATH\")",
+      "Bash(npm --version)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -fsS http://localhost:5173/ -o /tmp/index.html)",
+      "Read(//tmp/**)",
+      "Bash(curl -fsS http://localhost:5173/src/main.tsx)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/src/main.tsx)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/src/components/Sequencer.tsx)",
+      "Read(//private/tmp/**)",
+      "Bash(lsof -iTCP:5173 -sTCP:LISTEN -nP)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} size=%{size_download}\\\\n\" http://localhost:5173/)",
+      "Bash(ps -p 81946 -o pid,command)",
+      "Bash(curl -fsS -o /dev/null -w \"GET / -> %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(kill 81946)",
+      "Bash(xargs kill)",
+      "Bash(mkdir -p \"/Users/tagawa/Documents/Claude/シーケンサー/.claude\")",
+      "Bash(echo \"exit=$?\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -fsS \"http://localhost:5173/src/hooks/usePersistedPattern.ts?t=$\\(date +%s\\)\")",
+      "Bash(git --version)",
+      "Bash(gh --version)"
+    ]
+  }
+}

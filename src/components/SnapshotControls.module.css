@@ -1,0 +1,163 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--fg-dim);
+}
+
+.slots {
+  display: flex;
+  gap: 6px;
+}
+
+.slot {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+
+.slot:hover {
+  background: var(--line);
+}
+
+.slotEmpty {
+  color: var(--fg-dim);
+  border-color: var(--line);
+}
+
+.slotEmpty:hover {
+  color: var(--fg);
+  border-color: var(--line-strong);
+}
+
+.slotFull {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.slotFull:hover {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.slotArmed {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: transparent;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent); }
+  50%      { box-shadow: 0 0 0 4px transparent; }
+}
+
+.saveBtn {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  min-height: 36px;
+}
+
+.saveBtn:hover {
+  background: var(--line);
+}
+
+.saveBtnArmed {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.morph {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.morphLabel {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--fg-dim);
+}
+
+.morphSlider {
+  width: 120px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  height: 14px;
+}
+
+.morphSlider::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.morphSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  margin-top: -6px;
+  cursor: pointer;
+}
+
+.morphSlider::-moz-range-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.morphSlider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+.morphValue {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  min-width: 56px;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .morph {
+    margin-left: 0;
+    width: 100%;
+  }
+  .morphSlider {
+    flex: 1;
+  }
+}

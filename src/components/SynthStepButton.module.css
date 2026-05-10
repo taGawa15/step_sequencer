@@ -1,0 +1,110 @@
+.step {
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  color: var(--fg-dim);
+  transition:
+    background-color 80ms ease,
+    border-color 80ms ease,
+    color 80ms ease,
+    transform 80ms ease,
+    box-shadow 80ms ease;
+}
+
+.step:hover {
+  background: var(--line-soft);
+}
+
+.step:active {
+  transform: scale(0.94);
+}
+
+.downbeat {
+  border-color: var(--line-strong);
+}
+
+.on {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+}
+
+.on:hover {
+  background: var(--fg);
+}
+
+.current {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-color: var(--accent);
+}
+
+.on.current {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: none;
+  color: var(--bg);
+}
+
+/* Selection ring sits OUTSIDE the button so it can layer over the playhead. */
+.selected {
+  box-shadow:
+    0 0 0 1px var(--bg),
+    0 0 0 3px var(--fg);
+}
+
+.on.selected {
+  box-shadow:
+    0 0 0 1px var(--bg),
+    0 0 0 3px var(--fg);
+}
+
+.on.current.selected {
+  box-shadow:
+    0 0 0 1px var(--bg),
+    0 0 0 3px var(--accent);
+}
+
+/* Component-modified indicator */
+.modified::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  z-index: 1;
+}
+
+.on.modified::before {
+  background: var(--bg);
+}
+
+/* Note label inside an active step */
+.note {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.noteName {
+  font-weight: 500;
+}
+
+.noteOctave {
+  font-size: 8px;
+  opacity: 0.75;
+}

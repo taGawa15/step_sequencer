@@ -1,0 +1,413 @@
+/* ──────────────────────────────────────────────────────────────────────
+   PerformancePanel — three rendering modes:
+     1. desktop side col (≥1024px)  — narrow column, vertical stacking,
+                                       horizontal knob rows (label/slider/value)
+     2. tablet right col (768–1023) — same as desktop
+     3. mobile FX tab    (≤767px)   — wider but short, knobs in 3-col,
+                                       fx blocks in 3-col
+   ────────────────────────────────────────────────────────────────────── */
+
+.panel {
+  padding: 10px 12px 12px;
+  background: var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.panic {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 80ms ease, color 80ms ease;
+}
+
+.panic:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ── Main row default (desktop / tablet): horizontal knob rows ────── */
+
+.mainRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bigKnob,
+.smallKnob {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.knobLabel {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.knobValue {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bigSlider,
+.smallSlider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  margin: 0;
+  cursor: pointer;
+  height: 28px;
+}
+
+.bigSlider::-webkit-slider-runnable-track,
+.smallSlider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--line-strong);
+  border-radius: 1px;
+}
+
+.bigSlider::-webkit-slider-thumb,
+.smallSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  margin-top: -10px;
+  cursor: grab;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.smallSlider::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  margin-top: -8px;
+}
+
+.bigSlider::-moz-range-track,
+.smallSlider::-moz-range-track {
+  height: 2px;
+  background: var(--line-strong);
+}
+
+.bigSlider::-moz-range-thumb,
+.smallSlider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  cursor: grab;
+}
+
+.smallSlider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+}
+
+/* Bipolar center mark — overlay on the slider track at horizontal middle.
+   Layout: [label 56px] [gap 8px] [slider 1fr] [gap 8px] [value 56px]
+   Center of slider = (56 + 8) + (panel - 56*2 - 8*2) / 2 from left
+   We use 50% via positioning relative to the knob row. */
+.bipolar::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1px;
+  height: 8px;
+  background: var(--line-strong);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* ── Kill row ────────────────────────────────────────────────────── */
+
+.killRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.groupLabel {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--fg-dim);
+  margin-right: 2px;
+}
+
+.killButton {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  transition: background-color 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+
+.killButton:hover { background: var(--line); }
+
+.killOn {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.killOn:hover { background: var(--accent); color: var(--bg); }
+
+/* ── FX grid default (desktop / tablet): single column stacked ────── */
+
+.fxGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.fxBlock {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg);
+  opacity: 0.6;
+  transition: opacity 80ms ease;
+}
+
+.fxOn { opacity: 1; }
+
+.fxHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fxName {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--fg-dim);
+  font-weight: 500;
+}
+
+.fxToggle {
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg-dim);
+  padding: 3px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+  min-width: 40px;
+}
+
+.fxToggle:hover { color: var(--fg); }
+
+.fxToggleOn {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.fxToggleOn:hover { color: var(--bg); }
+
+.fxControls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fxRow {
+  display: grid;
+  grid-template-columns: 36px 1fr 56px;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.fxRowLabel {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+}
+
+.fxRowValue {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  text-align: right;
+}
+
+.fxSlider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  height: 14px;
+}
+
+.fxSlider::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.fxSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  margin-top: -6px;
+  cursor: pointer;
+}
+
+.fxSlider::-moz-range-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.fxSlider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+.fxChoices {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.fxChoice {
+  font: inherit;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--fg-dim);
+  border-radius: 2px;
+  min-width: 22px;
+}
+
+.fxChoice:hover {
+  color: var(--fg);
+  border-color: var(--line-strong);
+}
+
+.fxChoiceOn {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.fxChoiceOn:hover { color: var(--bg); }
+
+/* ── Snapshots row container ─────────────────────────────────────── */
+
+.snapshotsRow {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Mobile FX tab (≤767px) — short and wide, pack horizontally
+   ──────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .panel {
+    padding: 8px 12px 10px;
+    gap: 6px;
+  }
+
+  /* mainRow: 3 knobs side-by-side, stacked label/slider/value */
+  .mainRow {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 8px;
+  }
+  .bigKnob,
+  .smallKnob {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .knobLabel { text-align: center; }
+  .knobValue { text-align: center; }
+  .bipolar::before {
+    /* For column layout, center mark over the slider area */
+    top: calc(9px + 2px + 14px); /* label height + gap + slider half */
+    left: 50%;
+    height: 10px;
+    transform: translateX(-50%);
+  }
+
+  /* fxGrid: 3 blocks side-by-side */
+  .fxGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .fxBlock { padding: 6px 8px 8px; }
+  .fxRow {
+    grid-template-columns: 26px 1fr 32px;
+    min-height: 18px;
+    gap: 4px;
+  }
+  .fxRowLabel { font-size: 8px; }
+  .fxRowValue { font-size: 9px; }
+  .fxChoice { padding: 2px 4px; min-width: 18px; font-size: 9px; }
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MAX_BPM, MIN_BPM } from '../constants';
+import { ShortcutHint } from './ShortcutHint';
 import styles from './Transport.module.css';
 
 interface Props {
@@ -9,6 +10,8 @@ interface Props {
   onStop: () => void;
   onBpmChange: (bpm: number) => void;
   onClear: () => void;
+  onOpenHelp?: () => void;
+  recording?: boolean;
 }
 
 export const Transport = ({
@@ -18,7 +21,10 @@ export const Transport = ({
   onStop,
   onBpmChange,
   onClear,
+  onOpenHelp,
+  recording: _recording,
 }: Props) => {
+  void _recording;
   // Local string state allows the user to clear the field while typing.
   const [bpmInput, setBpmInput] = useState(String(bpm));
 
@@ -46,6 +52,7 @@ export const Transport = ({
           onClick={isPlaying ? onStop : onPlay}
         >
           {isPlaying ? 'STOP' : 'PLAY'}
+          <ShortcutHint hint="Space" />
         </button>
         <button type="button" className={styles.button} onClick={onClear}>
           CLEAR
@@ -70,6 +77,17 @@ export const Transport = ({
           className={styles.bpmInput}
         />
       </label>
+
+      {onOpenHelp && (
+        <button
+          type="button"
+          className={styles.helpBtn}
+          onClick={onOpenHelp}
+          aria-label="keyboard shortcuts"
+        >
+          ?
+        </button>
+      )}
     </div>
   );
 };

@@ -370,6 +370,15 @@ export const usePerformanceControls = (audioGraph: AudioGraph | null) => {
 
   const descriptors = useMemo(() => PARAM_DESCRIPTORS, []);
 
+  /** Wholesale replace — used by Timeline Load. */
+  const replaceState = useCallback((next: PerformanceState) => {
+    setState(next);
+  }, []);
+
+  const replaceSnapshots = useCallback((next: SnapshotMap) => {
+    setSnapshots(next);
+  }, []);
+
   return {
     state,
     snapshots,
@@ -388,5 +397,7 @@ export const usePerformanceControls = (audioGraph: AudioGraph | null) => {
     recallSnapshot,
     clearSnapshot,
     setParamById,
+    replaceState,
+    replaceSnapshots,
   };
 };

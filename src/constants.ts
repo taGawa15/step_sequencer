@@ -20,7 +20,20 @@ import type {
 // Sequencer config
 // ──────────────────────────────────────────────────────────────────────────
 
-export const STEP_COUNT = 16;
+/** Number of step cells visible in the UI grid at a time (one "page"). */
+export const STEP_COUNT_PER_PAGE = 16;
+/** Maximum loop length the engine and storage support. */
+export const MAX_STEP_COUNT = 64;
+/**
+ * Legacy alias kept for places that still want the visible page size. New
+ * code should reach for STEP_COUNT_PER_PAGE or MAX_STEP_COUNT explicitly.
+ */
+export const STEP_COUNT = STEP_COUNT_PER_PAGE;
+
+export const LOOP_LENGTHS = [2, 4, 8, 16, 32, 64] as const;
+export type LoopLengthType = (typeof LOOP_LENGTHS)[number];
+export const DEFAULT_LOOP_LENGTH: LoopLengthType = 16;
+export const MAX_STEP_PAGES = 4; // 64 / 16
 export const DEFAULT_BPM = 120;
 export const MIN_BPM = 40;
 export const MAX_BPM = 240;
@@ -109,9 +122,14 @@ export const findSynthTrack = (id: SynthTrackId): SynthTrackDef =>
 // Storage
 // ──────────────────────────────────────────────────────────────────────────
 
+export const STORAGE_KEY_V4 = 'step-sequencer:pattern:v4';
 export const STORAGE_KEY_V3 = 'step-sequencer:pattern:v3';
 export const STORAGE_KEY_V2 = 'step-sequencer:pattern:v2';
 export const STORAGE_KEY_V1 = 'step-sequencer:pattern:v1';
+
+export const STORAGE_KEY_TIMELINES = 'step-sequencer:timelines:v1';
+export const STORAGE_KEY_SAMPLES = 'step-sequencer:samples:v1';
+export const STORAGE_KEY_LOOP = 'step-sequencer:loop:v1';
 
 export const STORAGE_KEY_PERFORMANCE = 'step-sequencer:performance:v1';
 export const STORAGE_KEY_SNAPSHOTS = 'step-sequencer:snapshots:v1';
@@ -156,7 +174,7 @@ export const STORAGE_KEY_UI = 'step-sequencer:ui:v1';
 // ──────────────────────────────────────────────────────────────────────────
 
 const blankSteps = <T,>(make: () => T): T[] =>
-  Array.from({ length: STEP_COUNT }, make);
+  Array.from({ length: MAX_STEP_COUNT }, make);
 
 export const createStepComponents = (): StepComponents => ({
   probability: PROBABILITY_DEFAULT,

@@ -1,0 +1,89 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  background: var(--bg);
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.choices {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.choice {
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  cursor: pointer;
+  color: var(--fg-dim);
+  border-radius: 2px;
+  min-width: 36px;
+  min-height: 30px;
+  transition: background-color 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+
+.choice:hover {
+  color: var(--fg);
+  border-color: var(--line-strong);
+}
+
+.choiceOn {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.choiceOn:hover {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+/* Tiny dot to mark which page the current playhead is in */
+.choicePlaying {
+  position: relative;
+}
+
+.choicePlaying::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@media (max-width: 767px) {
+  .row {
+    padding: 5px 10px;
+    gap: 8px;
+  }
+  .choice {
+    padding: 4px 8px;
+    font-size: 10px;
+    min-width: 32px;
+    min-height: 28px;
+  }
+}

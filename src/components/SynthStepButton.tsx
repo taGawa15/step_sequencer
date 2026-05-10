@@ -9,6 +9,7 @@ interface Props {
   current: boolean;
   selected: boolean;
   modified: boolean;
+  outOfLoop?: boolean;
   onClick: () => void;
 }
 
@@ -18,6 +19,7 @@ const SynthStepButtonImpl = ({
   current,
   selected,
   modified,
+  outOfLoop,
   onClick,
 }: Props) => {
   const isDownbeat = index % 4 === 0;
@@ -30,6 +32,7 @@ const SynthStepButtonImpl = ({
     current ? styles.current : '',
     selected ? styles.selected : '',
     modified ? styles.modified : '',
+    outOfLoop ? styles.outOfLoop : '',
   ]
     .filter(Boolean)
     .join(' ');

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
-import { DRUM_TRACKS, STEP_COUNT, SYNTH_TRACKS } from '../constants';
+import { DRUM_TRACKS, SYNTH_TRACKS, type LoopLengthType } from '../constants';
 import type {
   DrumStep,
+  DrumTrackId,
   MuteMap,
   Pattern,
   StepComponents,
@@ -13,6 +14,10 @@ import {
   type PlockParams,
 } from '../audio/instruments';
 import { createAudioGraph, type AudioGraph } from '../audio/createAudioGraph';
+import type { SamplePlayer } from '../audio/samplePlayer';
+
+/** Map of drum track id → sample player to fire instead of the built-in voice. */
+export type SampleAssignmentMap = Partial<Record<DrumTrackId, SamplePlayer>>;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Public step event — emitted whenever a voice fires.
@@ -33,6 +38,10 @@ interface Args {
   pattern: Pattern;
   bpm: number;
   mutes: MuteMap;
+  loopLength: LoopLengthType;
+  /** Optional drum-track sample assignments — when present that track
+   *  fires the SamplePlayer instead of its built-in voice. */
+  sampleAssignments?: SampleAssignmentMap;
   onStepEvent?: (event: StepEvent) => void;
 }
 
@@ -68,7 +77,14 @@ const fireRepeats = ({ stepLen, baseAudioTime, repeat, onFire }: FireRepeatsArgs
 // Hook
 // ──────────────────────────────────────────────────────────────────────────
 
-export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) => {
+export const useSequencerEngine = ({
+  pattern,
+  bpm,
+  mutes,
+  loopLength,
+  sampleAssignments,
+  onStepEvent,
+}: Args) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(-1);
   // Exposed as state so consumers re-render once the audio graph is ready
@@ -78,6 +94,7 @@ export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) =
   const sequenceRef = useRef<Tone.Sequence<number> | null>(null);
   const patternRef = useRef(pattern);
   const mutesRef = useRef(mutes);
+  const sampleAssignRef = useRef<SampleAssignmentMap>(sampleAssignments ?? {});
   const onStepEventRef = useRef(onStepEvent);
 
   useEffect(() => {
@@ -87,18 +104,32 @@ export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) =
     mutesRef.current = mutes;
   }, [mutes]);
   useEffect(() => {
+    sampleAssignRef.current = sampleAssignments ?? {};
+  }, [sampleAssignments]);
+  useEffect(() => {
     onStepEventRef.current = onStepEvent;
   }, [onStepEvent]);
 
-  // Build the audio graph + sequence once.
+  // Audio graph is built once and kept alive for the lifetime of the engine.
   useEffect(() => {
     const graph = createAudioGraph();
     setAudioGraph(graph);
+    return () => {
+      graph.dispose();
+      setAudioGraph(null);
+    };
+  }, []);
+
+  // Tone.Sequence is rebuilt whenever loopLength or audioGraph changes so
+  // we cycle through 0..loopLength-1 and trigger voices from the live graph.
+  useEffect(() => {
+    if (!audioGraph) return;
 
     const seq = new Tone.Sequence<number>(
       (time, stepIndex) => {
         const p = patternRef.current;
         const m = mutesRef.current;
+        const samples = sampleAssignRef.current;
         const stepLen = Tone.Time('16n').toSeconds();
 
         for (const t of DRUM_TRACKS) {
@@ -112,11 +143,16 @@ export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) =
             baseAudioTime: time + step.components.microTiming / 1000,
             repeat: step.components.repeat,
             onFire: (fireTime, repeatIndex) => {
-              graph.voices.drums[t.id].trigger({
-                time: fireTime,
-                velocity: step.velocity,
-                plocks: componentsToPlocks(step.components),
-              });
+              const sample = samples[t.id];
+              if (sample && sample.ready) {
+                sample.trigger(fireTime, step.velocity);
+              } else {
+                audioGraph.voices.drums[t.id].trigger({
+                  time: fireTime,
+                  velocity: step.velocity,
+                  plocks: componentsToPlocks(step.components),
+                });
+              }
               onStepEventRef.current?.({
                 trackId: t.id,
                 stepIndex,
@@ -141,7 +177,7 @@ export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) =
             baseAudioTime: time + step.components.microTiming / 1000,
             repeat: step.components.repeat,
             onFire: (fireTime, repeatIndex) => {
-              graph.voices.synths[t.id].trigger({
+              audioGraph.voices.synths[t.id].trigger({
                 note: step.note,
                 duration: step.duration,
                 time: fireTime,
@@ -163,7 +199,7 @@ export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) =
 
         Tone.getDraw().schedule(() => setCurrentStep(stepIndex), time);
       },
-      Array.from({ length: STEP_COUNT }, (_, i) => i),
+      Array.from({ length: loopLength }, (_, i) => i),
       '16n',
     );
     seq.start(0);
@@ -172,11 +208,9 @@ export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) =
     return () => {
       seq.stop();
       seq.dispose();
-      graph.dispose();
       sequenceRef.current = null;
-      setAudioGraph(null);
     };
-  }, []);
+  }, [audioGraph, loopLength]);
 
   // Keep transport BPM in sync with state.
   useEffect(() => {

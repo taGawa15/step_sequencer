@@ -75,6 +75,11 @@
   background: var(--accent);
 }
 
+.outOfLoop {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
 .on.modified::after {
   background: var(--bg);
 }

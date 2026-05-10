@@ -1,0 +1,21 @@
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--bg);
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+@media (max-width: 767px) {
+  .mobileHidden { display: none; }
+}

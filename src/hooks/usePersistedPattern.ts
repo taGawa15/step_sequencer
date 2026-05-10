@@ -8,10 +8,11 @@ import {
   MICRO_TIMING_MAX,
   MICRO_TIMING_MIN,
   REPEAT_OPTIONS,
-  STEP_COUNT,
+  MAX_STEP_COUNT,
   STORAGE_KEY_V1,
   STORAGE_KEY_V2,
   STORAGE_KEY_V3,
+  STORAGE_KEY_V4,
   SYNTH_TRACKS,
   VELOCITY_MAX,
   VELOCITY_MIN,
@@ -115,19 +116,26 @@ const normalizeKindSplitPattern = (raw: unknown): Pattern | null => {
   for (const t of DRUM_TRACKS) {
     const arr = drums[t.id];
     if (!Array.isArray(arr)) {
-      result.drums[t.id] = Array.from({ length: STEP_COUNT }, createDrumStep);
+      result.drums[t.id] = Array.from({ length: MAX_STEP_COUNT }, createDrumStep);
     } else {
-      const padded = pad(arr, STEP_COUNT, () => undefined);
-      result.drums[t.id] = padded.map((s) => normalizeDrumStep(s));
+      // Pad up to MAX_STEP_COUNT for v4. Older v3 (16 steps) zero-pads.
+      const padded = pad(arr, MAX_STEP_COUNT, () => undefined);
+      result.drums[t.id] = padded.map((s) =>
+        s === undefined ? createDrumStep() : normalizeDrumStep(s),
+      );
     }
   }
   for (const t of SYNTH_TRACKS) {
     const arr = synths[t.id];
     if (!Array.isArray(arr)) {
-      result.synths[t.id] = Array.from({ length: STEP_COUNT }, () => createSynthStep(t));
+      result.synths[t.id] = Array.from({ length: MAX_STEP_COUNT }, () =>
+        createSynthStep(t),
+      );
     } else {
-      const padded = pad(arr, STEP_COUNT, () => undefined);
-      result.synths[t.id] = padded.map((s) => normalizeSynthStep(s, t));
+      const padded = pad(arr, MAX_STEP_COUNT, () => undefined);
+      result.synths[t.id] = padded.map((s) =>
+        s === undefined ? createSynthStep(t) : normalizeSynthStep(s, t),
+      );
     }
   }
   return result;
@@ -149,11 +157,7 @@ const isV1Pattern = (data: unknown): data is Record<string, boolean[]> => {
   const obj = data as Record<string, unknown>;
   for (const t of [...DRUM_TRACKS, ...SYNTH_TRACKS]) {
     const arr = obj[t.id];
-    if (
-      !Array.isArray(arr) ||
-      arr.length !== STEP_COUNT ||
-      !arr.every((s) => typeof s === 'boolean')
-    ) {
+    if (!Array.isArray(arr) || !arr.every((s) => typeof s === 'boolean')) {
       return false;
     }
   }
@@ -188,8 +192,8 @@ const migrateV1ToV3 = (v1: Record<string, boolean[]>): Pattern => {
 // ──────────────────────────────────────────────────────────────────────────
 
 const loadPattern = (): Pattern => {
-  // v3 first, then v2 (which normalizes the same way — components default).
-  for (const key of [STORAGE_KEY_V3, STORAGE_KEY_V2]) {
+  // Newest schemas first. v4 uses 64-step arrays; v3/v2 normalize via padding.
+  for (const key of [STORAGE_KEY_V4, STORAGE_KEY_V3, STORAGE_KEY_V2]) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
@@ -200,7 +204,7 @@ const loadPattern = (): Pattern => {
       /* fallthrough */
     }
   }
-  // Fall back to v1 → v3.
+  // Fall back to v1 (legacy boolean[]) → upgrade.
   try {
     const raw = localStorage.getItem(STORAGE_KEY_V1);
     if (raw) {
@@ -222,7 +226,7 @@ export const usePersistedPattern = () => {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_V3, JSON.stringify(pattern));
+      localStorage.setItem(STORAGE_KEY_V4, JSON.stringify(pattern));
     } catch {
       // storage unavailable (quota / private mode) — silently skip
     }
@@ -347,6 +351,11 @@ export const usePersistedPattern = () => {
     });
   }, []);
 
+  /** Wholesale replace — used by Timeline Load. */
+  const replacePattern = useCallback((next: Pattern) => {
+    setPattern(next);
+  }, []);
+
   return {
     pattern,
     toggleDrumStep,
@@ -357,6 +366,7 @@ export const usePersistedPattern = () => {
     updateStepComponents,
     resetStepComponents,
     clearPattern,
+    replacePattern,
   };
 };
 

@@ -82,3 +82,26 @@
 .bpmInput:focus {
   border-color: var(--fg);
 }
+
+.helpBtn {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg-dim);
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 80ms, color 80ms, border-color 80ms;
+}
+
+.helpBtn:hover {
+  background: var(--line);
+  color: var(--fg);
+  border-color: var(--fg);
+}

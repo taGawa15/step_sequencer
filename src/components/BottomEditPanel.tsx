@@ -3,7 +3,14 @@ import { STORAGE_KEY_UI } from '../constants';
 import type { Viewport } from '../hooks/useViewport';
 import styles from './BottomEditPanel.module.css';
 
-export type BottomTab = 'mixer' | 'note' | 'step' | 'fx' | 'snap';
+export type BottomTab =
+  | 'mixer'
+  | 'note'
+  | 'step'
+  | 'fx'
+  | 'snap'
+  | 'timeline'
+  | 'sample';
 
 const TAB_LABEL: Record<BottomTab, string> = {
   mixer: 'MIXER',
@@ -11,16 +18,17 @@ const TAB_LABEL: Record<BottomTab, string> = {
   step: 'STEP FX',
   fx: 'MASTER FX',
   snap: 'SNAP',
+  timeline: 'TIMELINE',
+  sample: 'SAMPLE',
 };
 
 const TABS_BY_VIEWPORT: Record<Viewport, BottomTab[]> = {
   // Desktop side columns already host mixer (left) and fx/snap (right) so
-  // the bottom panel only carries step-edit tabs.
-  desktop: ['note', 'step'],
-  // Tablet has only the right column (FX/snap), so mixer goes here.
-  tablet: ['mixer', 'note', 'step'],
+  // the bottom panel carries step-edit + new feature tabs.
+  desktop: ['note', 'step', 'timeline', 'sample'],
+  tablet: ['mixer', 'note', 'step', 'timeline', 'sample'],
   // Mobile has no side columns — everything lives in the bottom sheet.
-  mobile: ['mixer', 'note', 'step', 'fx', 'snap'],
+  mobile: ['mixer', 'note', 'step', 'fx', 'snap', 'timeline', 'sample'],
 };
 
 interface UIState {

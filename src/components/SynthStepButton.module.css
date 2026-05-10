@@ -85,6 +85,11 @@
   z-index: 1;
 }
 
+.outOfLoop {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
 .on.modified::before {
   background: var(--bg);
 }

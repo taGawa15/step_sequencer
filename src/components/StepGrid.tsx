@@ -1,5 +1,11 @@
 import { memo } from 'react';
-import { DRUM_TRACKS, SYNTH_TRACKS, hasComponentModifications } from '../constants';
+import {
+  DRUM_TRACKS,
+  STEP_COUNT_PER_PAGE,
+  SYNTH_TRACKS,
+  hasComponentModifications,
+  type LoopLengthType,
+} from '../constants';
 import type {
   DrumTrackId,
   Pattern,
@@ -16,6 +22,9 @@ interface Props {
   mutes: MuteMap;
   currentStep: number;
   selection: Selection | null;
+  /** 0-based page index — which 16-step slice to render. */
+  stepPage: number;
+  loopLength: LoopLengthType;
   onDrumClick: (trackId: DrumTrackId, idx: number) => void;
   onSynthClick: (trackId: SynthTrackId, idx: number) => void;
   onToggleMute: (id: DrumTrackId | SynthTrackId) => void;
@@ -26,10 +35,18 @@ const StepGridImpl = ({
   mutes,
   currentStep,
   selection,
+  stepPage,
+  loopLength,
   onDrumClick,
   onSynthClick,
   onToggleMute,
 }: Props) => {
+  // Slice window: render only the visible 16 steps of the active page.
+  const start = stepPage * STEP_COUNT_PER_PAGE;
+  const end = start + STEP_COUNT_PER_PAGE;
+  // Steps past the current loop length are inert (rendered "outOfLoop")
+  // so users can see where the loop ends.
+
   return (
     <div className={styles.gridScroller}>
       <div className={styles.gridContent}>
@@ -37,6 +54,7 @@ const StepGridImpl = ({
           const muted = mutes[track.id];
           const highlighted =
             selection?.kind === 'drum' && selection.trackId === track.id;
+          const slice = pattern.drums[track.id].slice(start, end);
           return (
             <div
               key={track.id}
@@ -62,21 +80,26 @@ const StepGridImpl = ({
                 </button>
               </div>
               <div className={styles.steps}>
-                {pattern.drums[track.id].map((step, i) => (
-                  <StepButton
-                    key={i}
-                    index={i}
-                    on={step.active}
-                    current={currentStep === i}
-                    selected={
-                      selection?.kind === 'drum' &&
-                      selection.trackId === track.id &&
-                      selection.stepIndex === i
-                    }
-                    modified={hasComponentModifications(step.components)}
-                    onClick={() => onDrumClick(track.id, i)}
-                  />
-                ))}
+                {slice.map((step, i) => {
+                  const globalIdx = start + i;
+                  const inLoop = globalIdx < loopLength;
+                  return (
+                    <StepButton
+                      key={globalIdx}
+                      index={globalIdx}
+                      on={step.active}
+                      current={currentStep === globalIdx}
+                      selected={
+                        selection?.kind === 'drum' &&
+                        selection.trackId === track.id &&
+                        selection.stepIndex === globalIdx
+                      }
+                      modified={hasComponentModifications(step.components)}
+                      outOfLoop={!inLoop}
+                      onClick={() => onDrumClick(track.id, globalIdx)}
+                    />
+                  );
+                })}
               </div>
             </div>
           );
@@ -88,6 +111,7 @@ const StepGridImpl = ({
           const muted = mutes[track.id];
           const highlighted =
             selection?.kind === 'synth' && selection.trackId === track.id;
+          const slice = pattern.synths[track.id].slice(start, end);
           return (
             <div
               key={track.id}
@@ -113,21 +137,26 @@ const StepGridImpl = ({
                 </button>
               </div>
               <div className={styles.steps}>
-                {pattern.synths[track.id].map((step, i) => (
-                  <SynthStepButton
-                    key={i}
-                    index={i}
-                    step={step}
-                    current={currentStep === i}
-                    selected={
-                      selection?.kind === 'synth' &&
-                      selection.trackId === track.id &&
-                      selection.stepIndex === i
-                    }
-                    modified={hasComponentModifications(step.components)}
-                    onClick={() => onSynthClick(track.id, i)}
-                  />
-                ))}
+                {slice.map((step, i) => {
+                  const globalIdx = start + i;
+                  const inLoop = globalIdx < loopLength;
+                  return (
+                    <SynthStepButton
+                      key={globalIdx}
+                      index={globalIdx}
+                      step={step}
+                      current={currentStep === globalIdx}
+                      selected={
+                        selection?.kind === 'synth' &&
+                        selection.trackId === track.id &&
+                        selection.stepIndex === globalIdx
+                      }
+                      modified={hasComponentModifications(step.components)}
+                      outOfLoop={!inLoop}
+                      onClick={() => onSynthClick(track.id, globalIdx)}
+                    />
+                  );
+                })}
               </div>
             </div>
           );

@@ -5,6 +5,36 @@
   padding: 12px 14px 14px;
   height: 100%;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Desktop / tablet: 2 columns. Slots+actions left, clipboard right.
+   Mobile keeps the default vertical stack. */
+@media (min-width: 768px) {
+  .panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'header   header'
+      'slots    clip'
+      'actions  clip';
+    column-gap: 16px;
+    row-gap: 8px;
+  }
+  .header { grid-area: header; }
+  .slots { grid-area: slots; }
+  .actions { grid-area: actions; }
+  .clipboardSlot {
+    grid-area: clip;
+    align-self: start;
+    /* The clipboard panel already has its own top border via .panel
+       inside CopyPasteControls. Strip the redundant separator. */
+  }
+}
+
+.clipboardSlot {
+  min-width: 0;
 }
 
 .header {

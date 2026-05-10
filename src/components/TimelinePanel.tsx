@@ -99,6 +99,6 @@ export const TimelinePanel = ({
       </button>
     </div>
 
-    {clipboardSlot}
+    {clipboardSlot && <div className={styles.clipboardSlot}>{clipboardSlot}</div>}
   </section>
 );

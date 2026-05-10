@@ -184,7 +184,30 @@ export const useSequencerEngine = ({ pattern, bpm, mutes, onStepEvent }: Args) =
   }, [bpm]);
 
   const play = useCallback(async () => {
+    // iOS Safari hardening — the AudioContext must be resumed during the
+    // user gesture frame. Tone.start() does this internally, but on some
+    // iOS versions we also need to call resume() on the raw context. Doing
+    // both is harmless on other browsers.
+    try {
+      const rawCtx = Tone.getContext().rawContext as AudioContext;
+      if (rawCtx && rawCtx.state !== 'running') {
+        await rawCtx.resume();
+      }
+    } catch {
+      /* ignore */
+    }
     await Tone.start();
+
+    // Warm up the output: schedule a silent gain change to make iOS commit
+    // the audio graph before the first real trigger fires.
+    try {
+      const dest = Tone.getDestination();
+      const now = Tone.now();
+      dest.volume.setValueAtTime(dest.volume.value, now);
+    } catch {
+      /* ignore */
+    }
+
     const transport = Tone.getTransport();
     transport.bpm.value = bpm;
     transport.start();

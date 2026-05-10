@@ -30,6 +30,7 @@ import { useViewport } from '../hooks/useViewport';
 import { useLoopLength } from '../hooks/useLoopLength';
 import { useTimelineSlots } from '../hooks/useTimelineSlots';
 import { useMicSampler } from '../hooks/useMicSampler';
+import { useTimelineClipboard } from '../hooks/useTimelineClipboard';
 import { useKeyboardShortcuts, type ShortcutHandlerMap } from '../hooks/useKeyboardShortcuts';
 import {
   createSamplePlayerFromUrl,
@@ -47,7 +48,9 @@ import { LoopControls } from './LoopControls';
 import { TimelinePanel } from './TimelinePanel';
 import { MicSamplingPanel } from './MicSamplingPanel';
 import { KeyboardHelpModal } from './KeyboardHelpModal';
+import { CopyPasteControls } from './CopyPasteControls';
 import { BottomEditPanel, type BottomTab } from './BottomEditPanel';
+import { LOOP_LENGTHS } from '../constants';
 
 export const Sequencer = () => {
   const {
@@ -262,6 +265,32 @@ export const Sequencer = () => {
 
   const timeline = useTimelineSlots({ getCurrentSnapshot, applySnapshot });
 
+  // ── Step clipboard (copy / paste / repeat fill / undo) ────────────
+  const clipboard = useTimelineClipboard({
+    getPattern: () => pattern,
+    getLoopLength: () => loop.loopLength,
+    replacePattern,
+    setLoopLength: loop.setLoopLength,
+    getSelectedTrack: () => (selection ? selection.trackId : null),
+  });
+
+  // Selected track display name for the clipboard scope toggle
+  const selectedTrackName = useMemo(() => {
+    if (!selection) return null;
+    if (selection.kind === 'drum') return findDrumTrack(selection.trackId).label;
+    return findSynthTrack(selection.trackId).label;
+  }, [selection]);
+
+  // Helper to step through LOOP_LENGTHS for [/] keys
+  const stepLoop = useCallback(
+    (direction: -1 | 1) => {
+      const idx = LOOP_LENGTHS.indexOf(loop.loopLength);
+      const next = LOOP_LENGTHS[idx + direction];
+      if (next !== undefined) loop.setLoopLength(next);
+    },
+    [loop],
+  );
+
   // ── Keyboard shortcuts ────────────────────────────────────────────
   const togglePlay = useCallback(() => {
     if (isPlaying) stop();
@@ -313,6 +342,15 @@ export const Sequencer = () => {
         performance.setReverb({ enabled: !performance.state.reverb.enabled }),
       'sample.recordToggle': sampler.toggleRecording,
       'help.toggle': () => setHelpOpen((v) => !v),
+      // Loop nav via brackets
+      'loop.shorter': () => stepLoop(-1),
+      'loop.longer': () => stepLoop(1),
+      // Clipboard
+      'clipboard.copy': () => clipboard.copy('all'),
+      'clipboard.paste': () => clipboard.paste(0, 'replace'),
+      'clipboard.pasteRepeat': () => clipboard.pasteRepeatFill(),
+      'clipboard.duplicate': () => clipboard.duplicateAppend(),
+      'clipboard.undo': () => clipboard.undo(),
     }),
     [
       togglePlay,
@@ -323,6 +361,8 @@ export const Sequencer = () => {
       performance,
       sampler.toggleRecording,
       selection?.stepIndex,
+      stepLoop,
+      clipboard,
     ],
   );
 
@@ -426,6 +466,16 @@ export const Sequencer = () => {
       onDuplicate={timeline.duplicate}
       onClear={() => timeline.clear()}
       onSetConfirmGuard={timeline.setConfirmLoadGuard}
+      clipboardSlot={
+        <CopyPasteControls
+          clipboard={clipboard.clipboard}
+          canUndo={clipboard.canUndo}
+          selectedTrackName={selectedTrackName}
+          onCopy={clipboard.copy}
+          onPaste={clipboard.paste}
+          onUndo={clipboard.undo}
+        />
+      }
     />
   );
 

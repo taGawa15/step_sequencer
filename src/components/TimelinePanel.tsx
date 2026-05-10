@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import type { TimelineSlot, TimelineSlotId } from '../types/timeline';
 import { TIMELINE_SLOT_IDS } from '../types/timeline';
 import styles from './TimelinePanel.module.css';
@@ -12,6 +13,8 @@ interface Props {
   onDuplicate: () => void;
   onClear: () => void;
   onSetConfirmGuard: (on: boolean) => void;
+  /** Slot for the CopyPasteControls panel; rendered below the slot grid. */
+  clipboardSlot?: ReactNode;
 }
 
 export const TimelinePanel = ({
@@ -24,6 +27,7 @@ export const TimelinePanel = ({
   onDuplicate,
   onClear,
   onSetConfirmGuard,
+  clipboardSlot,
 }: Props) => (
   <section className={styles.panel} aria-label="timeline panel">
     <header className={styles.header}>
@@ -94,5 +98,7 @@ export const TimelinePanel = ({
         CLEAR
       </button>
     </div>
+
+    {clipboardSlot}
   </section>
 );

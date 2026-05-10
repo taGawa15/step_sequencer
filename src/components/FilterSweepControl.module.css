@@ -1,0 +1,144 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 44px 1fr 60px 22px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.rowLabel {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.sliderWrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 28px;
+}
+
+/* Subtle 1px line at the slider centre — for the bipolar sweep only.
+   Sits behind the thumb thanks to z-index ordering. */
+.bipolarMark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1px;
+  height: 8px;
+  background: var(--line-strong);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 28px;
+  margin: 0;
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--line-strong);
+  border-radius: 1px;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  margin-top: -10px;
+  cursor: grab;
+  box-shadow: 0 0 0 1px var(--line-strong);
+  position: relative;
+  z-index: 1;
+}
+
+.slider::-moz-range-track {
+  height: 2px;
+  background: var(--line-strong);
+}
+
+.slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--bg);
+  cursor: grab;
+}
+
+.value {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  text-align: right;
+  white-space: nowrap;
+  /* Stable width so the slider track never re-flows when the readout
+     changes from "open" to "LP 100" etc. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reset {
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reset:hover {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.resetSpacer {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 767px) {
+  .row {
+    grid-template-columns: 38px 1fr 52px 22px;
+    gap: 6px;
+  }
+  .rowLabel { font-size: 8px; }
+  .value { font-size: 9px; }
+}

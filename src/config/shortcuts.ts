@@ -21,12 +21,15 @@ export const SHORTCUTS: readonly ShortcutDescriptor[] = [
   { id: 'page.next', label: 'Next step page', hint: '⇧→', codes: ['ArrowRight'], modifiers: { shift: true }, action: 'page.next', group: 'page' },
 
   // ── Loop ──
-  { id: 'loop.x2', label: 'Loop ×2', hint: 'Q', codes: ['KeyQ'], action: 'loop.x2', group: 'loop' },
-  { id: 'loop.x4', label: 'Loop ×4', hint: 'W', codes: ['KeyW'], action: 'loop.x4', group: 'loop' },
-  { id: 'loop.x8', label: 'Loop ×8', hint: 'E', codes: ['KeyE'], action: 'loop.x8', group: 'loop' },
-  { id: 'loop.x16', label: 'Loop ×16', hint: 'R', codes: ['KeyR'], action: 'loop.x16', group: 'loop' },
-  { id: 'loop.x32', label: 'Loop ×32', hint: 'T', codes: ['KeyT'], action: 'loop.x32', group: 'loop' },
-  { id: 'loop.x64', label: 'Loop ×64', hint: 'Y', codes: ['KeyY'], action: 'loop.x64', group: 'loop' },
+  // Action IDs kept for back-compat. Display labels show the new naming.
+  { id: 'loop.x2', label: 'Loop ×0.5', hint: 'Q', codes: ['KeyQ'], action: 'loop.x2', group: 'loop' },
+  { id: 'loop.x4', label: 'Loop ×1', hint: 'W', codes: ['KeyW'], action: 'loop.x4', group: 'loop' },
+  { id: 'loop.x8', label: 'Loop ×2', hint: 'E', codes: ['KeyE'], action: 'loop.x8', group: 'loop' },
+  { id: 'loop.x16', label: 'Loop ×4', hint: 'R', codes: ['KeyR'], action: 'loop.x16', group: 'loop' },
+  { id: 'loop.x32', label: 'Loop ×8', hint: 'T', codes: ['KeyT'], action: 'loop.x32', group: 'loop' },
+  { id: 'loop.x64', label: 'Loop ×16', hint: 'Y', codes: ['KeyY'], action: 'loop.x64', group: 'loop' },
+  { id: 'loop.shorter', label: 'Loop shorter', hint: '[', codes: ['BracketLeft'], action: 'loop.shorter', group: 'loop' },
+  { id: 'loop.longer', label: 'Loop longer', hint: ']', codes: ['BracketRight'], action: 'loop.longer', group: 'loop' },
 
   // ── Tracks ──
   { id: 'track.1', label: 'Track Kick', hint: '1', codes: ['Digit1'], action: 'track.1', group: 'track' },
@@ -59,6 +62,13 @@ export const SHORTCUTS: readonly ShortcutDescriptor[] = [
 
   // ── Sample ──
   { id: 'sample.recordToggle', label: 'Record start/stop', hint: 'M', codes: ['KeyM'], action: 'sample.recordToggle', group: 'sample' },
+
+  // ── Clipboard ──
+  { id: 'clipboard.copy', label: 'Copy current loop', hint: `${cmdLabel}C`, codes: ['KeyC'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.copy', group: 'clipboard' },
+  { id: 'clipboard.paste', label: 'Paste at cursor', hint: `${cmdLabel}V`, codes: ['KeyV'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.paste', group: 'clipboard' },
+  { id: 'clipboard.pasteRepeat', label: 'Paste Repeat Fill', hint: `⇧${cmdLabel}V`, codes: ['KeyV'], modifiers: { meta: isMac, ctrl: !isMac, shift: true }, action: 'clipboard.pasteRepeat', group: 'clipboard' },
+  { id: 'clipboard.duplicate', label: 'Duplicate (append)', hint: `${cmdLabel}D`, codes: ['KeyD'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.duplicate', group: 'clipboard' },
+  { id: 'clipboard.undo', label: 'Undo last paste', hint: `${cmdLabel}Z`, codes: ['KeyZ'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.undo', group: 'clipboard' },
 
   // ── Help ──
   { id: 'help.toggle', label: 'Show shortcuts', hint: '?', codes: ['Slash', 'KeyH'], modifiers: { shift: false }, action: 'help.toggle', group: 'help' },

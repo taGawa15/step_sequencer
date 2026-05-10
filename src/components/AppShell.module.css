@@ -10,6 +10,14 @@
   overflow: hidden;
   background: var(--bg);
   color: var(--fg);
+  box-sizing: border-box;
+
+  /* Four-side breathing room with safe-area awareness.
+     Mobile: small inset, PC: a bit more (overridden in media query). */
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
+  padding-right: max(8px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(8px, env(safe-area-inset-left, 0px));
 
   display: grid;
   /* Mobile default: single column. Bottom row is capped so a tall tab
@@ -21,7 +29,15 @@
     'center'
     'bottom';
 
-  padding-top: env(safe-area-inset-top, 0px);
+  /* Hairline border so the inset framing reads as a deliberate device. */
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+  border-radius: 6px;
+}
+
+/* The grid areas need to share the rounded inset corners. */
+.transport, .leftCol, .center, .rightCol, .bottom {
+  border-radius: 0;
 }
 
 .transport {
@@ -70,6 +86,11 @@
       'transport transport'
       'center    rightCol'
       'bottom    bottom';
+    /* Slightly larger inset on bigger screens */
+    padding: max(12px, env(safe-area-inset-top, 0px))
+             max(12px, env(safe-area-inset-right, 0px))
+             max(12px, env(safe-area-inset-bottom, 0px))
+             max(12px, env(safe-area-inset-left, 0px));
   }
 }
 
@@ -85,5 +106,6 @@
       'transport transport transport'
       'leftCol   center    rightCol'
       'bottom    bottom    bottom';
+    padding: 16px;
   }
 }

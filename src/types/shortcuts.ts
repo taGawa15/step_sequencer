@@ -14,6 +14,13 @@ export type ShortcutAction =
   | 'loop.x16'
   | 'loop.x32'
   | 'loop.x64'
+  | 'loop.shorter'
+  | 'loop.longer'
+  | 'clipboard.copy'
+  | 'clipboard.paste'
+  | 'clipboard.pasteRepeat'
+  | 'clipboard.duplicate'
+  | 'clipboard.undo'
   | 'track.1'
   | 'track.2'
   | 'track.3'
@@ -53,5 +60,15 @@ export interface ShortcutDescriptor {
     ctrl?: boolean;
   };
   action: ShortcutAction;
-  group: 'transport' | 'bpm' | 'page' | 'loop' | 'track' | 'timeline' | 'performance' | 'sample' | 'help';
+  group:
+    | 'transport'
+    | 'bpm'
+    | 'page'
+    | 'loop'
+    | 'track'
+    | 'timeline'
+    | 'performance'
+    | 'sample'
+    | 'clipboard'
+    | 'help';
 }

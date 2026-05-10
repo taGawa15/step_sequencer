@@ -6,16 +6,13 @@ import {
   COMPRESSOR_THRESHOLD_MIN,
   DELAY_FEEDBACK_MAX,
   DELAY_TIMES,
-  FILTER_RESONANCE_MAX,
-  FILTER_RESONANCE_MIN,
-  FILTER_SWEEP_MAX,
-  FILTER_SWEEP_MIN,
   MASTER_VOLUME_MAX,
   MASTER_VOLUME_MIN,
   REVERB_DECAY_MAX,
   REVERB_DECAY_MIN,
 } from '../constants';
 import type { PerformanceState } from '../types/audio';
+import { FilterSweepControl } from './FilterSweepControl';
 import styles from './PerformancePanel.module.css';
 
 interface Props {
@@ -43,14 +40,6 @@ export const PerformancePanel = ({
   onPanic,
   children,
 }: Props) => {
-  const sweep = state.filterSweep;
-  const sweepLabel =
-    sweep === 0
-      ? 'open'
-      : sweep < 0
-        ? `LP ${Math.abs(sweep)}`
-        : `HP ${sweep}`;
-
   return (
     <section className={styles.panel} aria-label="performance panel">
       <div className={styles.panelHeader}>
@@ -60,26 +49,16 @@ export const PerformancePanel = ({
         </button>
       </div>
 
+      {/* FILTER SWEEP + Q live in their own contained component so the
+          slider always shrinks to fit and never overflows the panel. */}
+      <FilterSweepControl
+        sweep={state.filterSweep}
+        resonance={state.filterResonance}
+        onSetSweep={onSetFilterSweep}
+        onSetResonance={onSetFilterResonance}
+      />
+
       <div className={styles.mainRow}>
-        <BigKnob
-          label="FILTER SWEEP"
-          value={sweep}
-          min={FILTER_SWEEP_MIN}
-          max={FILTER_SWEEP_MAX}
-          step={1}
-          display={sweepLabel}
-          bipolar
-          onChange={onSetFilterSweep}
-        />
-        <SmallKnob
-          label="Q"
-          value={state.filterResonance}
-          min={FILTER_RESONANCE_MIN}
-          max={FILTER_RESONANCE_MAX}
-          step={0.1}
-          display={state.filterResonance.toFixed(1)}
-          onChange={onSetFilterResonance}
-        />
         <SmallKnob
           label="MASTER"
           value={state.masterVolume}
@@ -202,50 +181,6 @@ export const PerformancePanel = ({
 // ──────────────────────────────────────────────────────────────────────────
 // Local presentational helpers
 // ──────────────────────────────────────────────────────────────────────────
-
-const BigKnob = ({
-  label,
-  value,
-  min,
-  max,
-  step,
-  display,
-  onChange,
-  bipolar,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  display: string;
-  onChange: (v: number) => void;
-  bipolar?: boolean;
-}) => {
-  const range = max - min;
-  // Position of the visual indicator along the slider as percent.
-  const pct = ((value - min) / range) * 100;
-  return (
-    <div className={`${styles.bigKnob} ${bipolar ? styles.bipolar : ''}`}>
-      <div className={styles.knobLabel}>{label}</div>
-      <div className={styles.knobTrack} aria-hidden>
-        {bipolar && <div className={styles.knobCenter} />}
-        <div className={styles.knobFill} style={{ left: `${pct}%` }} />
-      </div>
-      <input
-        type="range"
-        className={styles.bigSlider}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        aria-label={label}
-      />
-      <div className={styles.knobValue}>{display}</div>
-    </div>
-  );
-};
 
 const SmallKnob = ({
   label,

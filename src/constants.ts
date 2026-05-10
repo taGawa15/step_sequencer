@@ -30,10 +30,35 @@ export const MAX_STEP_COUNT = 64;
  */
 export const STEP_COUNT = STEP_COUNT_PER_PAGE;
 
-export const LOOP_LENGTHS = [2, 4, 8, 16, 32, 64] as const;
+/** Step counts the engine accepts as a loop length. */
+export const LOOP_LENGTHS = [1, 2, 4, 8, 16, 32, 64] as const;
 export type LoopLengthType = (typeof LOOP_LENGTHS)[number];
 export const DEFAULT_LOOP_LENGTH: LoopLengthType = 16;
 export const MAX_STEP_PAGES = 4; // 64 / 16
+
+/**
+ * UI-facing label/step pairs. Older builds used "×N" where N was the
+ * literal step count; this mapping renames the shorter loops to
+ * fractional bars (×0.25 = 1 step ≈ 16th note, ×16 = 64 steps = 4 bars).
+ * Existing localStorage data stores the raw step count, so loaded
+ * patterns continue to play at the same length — only the displayed
+ * label shifts.
+ */
+export const LOOP_LENGTH_OPTIONS: readonly {
+  label: string;
+  steps: LoopLengthType;
+}[] = [
+  { label: '×0.25', steps: 1 },
+  { label: '×0.5', steps: 2 },
+  { label: '×1', steps: 4 },
+  { label: '×2', steps: 8 },
+  { label: '×4', steps: 16 },
+  { label: '×8', steps: 32 },
+  { label: '×16', steps: 64 },
+];
+
+export const labelForLoopLength = (steps: number): string =>
+  LOOP_LENGTH_OPTIONS.find((o) => o.steps === steps)?.label ?? `${steps}`;
 export const DEFAULT_BPM = 120;
 export const MIN_BPM = 40;
 export const MAX_BPM = 240;

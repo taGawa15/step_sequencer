@@ -17,6 +17,7 @@ const GROUP_LABEL: Record<ShortcutDescriptor['group'], string> = {
   timeline: 'Timeline',
   performance: 'Performance',
   sample: 'Sample',
+  clipboard: 'Clipboard',
   help: 'Help',
 };
 

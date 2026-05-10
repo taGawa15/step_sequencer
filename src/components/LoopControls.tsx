@@ -1,4 +1,4 @@
-import { LOOP_LENGTHS, type LoopLengthType } from '../constants';
+import { LOOP_LENGTH_OPTIONS, type LoopLengthType } from '../constants';
 import styles from './LoopControls.module.css';
 
 interface Props {
@@ -31,15 +31,16 @@ export const LoopControls = ({
       <div className={styles.group}>
         <span className={styles.label}>LOOP</span>
         <div className={styles.choices}>
-          {LOOP_LENGTHS.map((l) => (
+          {LOOP_LENGTH_OPTIONS.map((opt) => (
             <button
-              key={l}
+              key={opt.steps}
               type="button"
-              className={`${styles.choice} ${l === loopLength ? styles.choiceOn : ''}`}
-              onClick={() => onSetLoopLength(l)}
-              aria-pressed={l === loopLength}
+              className={`${styles.choice} ${opt.steps === loopLength ? styles.choiceOn : ''}`}
+              onClick={() => onSetLoopLength(opt.steps)}
+              aria-pressed={opt.steps === loopLength}
+              aria-label={`loop ${opt.label} (${opt.steps} steps)`}
             >
-              ×{l}
+              {opt.label}
             </button>
           ))}
         </div>

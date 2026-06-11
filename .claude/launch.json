@@ -6,6 +6,12 @@
       "runtimeExecutable": "/Users/tagawa/.local/node/bin/node",
       "runtimeArgs": ["./node_modules/vite/bin/vite.js"],
       "port": 5173
+    },
+    {
+      "name": "sequencer-prod",
+      "runtimeExecutable": "/Users/tagawa/.local/node/bin/node",
+      "runtimeArgs": ["./node_modules/vite/bin/vite.js", "preview", "--port", "4174"],
+      "port": 4174
     }
   ]
 }

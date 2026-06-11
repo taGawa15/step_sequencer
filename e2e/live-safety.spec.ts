@@ -230,6 +230,117 @@ test.describe('debug panel', () => {
   });
 });
 
+/**
+ * Real audio-output assertions via the dev-only window.__seqDebug hook
+ * (graph + Tone). A DelayNode-free feedback cycle once muted the entire
+ * master bus per Web Audio spec — and every UI-level test still passed.
+ * These tests LISTEN to masterOut so a silent chain can never ship again.
+ */
+test.describe('audio output — master chain integrity', () => {
+  const measureMasterDb = async (
+    page: Page,
+    setup: 'dry' | 'stutter' | 'crush' | 'throwFreeze',
+  ): Promise<number> =>
+    page.evaluate(async (mode) => {
+      interface SeqDebug {
+        graph: {
+          master: {
+            masterOut: { connect: (n: unknown) => void };
+            setBitCrush: (on: boolean) => void;
+            setDelayThrow: (on: boolean) => void;
+            setReverbFreeze: (on: boolean) => void;
+          };
+          voices: {
+            drums: {
+              kick: { trigger: (o: unknown) => void };
+            };
+          };
+        };
+        Tone: {
+          start: () => Promise<void>;
+          now: () => number;
+          Meter: new (o: { smoothing: number }) => {
+            getValue: () => number | number[];
+            dispose: () => void;
+          };
+        };
+      }
+      const dbg = (window as unknown as { __seqDebug?: SeqDebug }).__seqDebug;
+      if (!dbg) return -999;
+      const { graph, Tone } = dbg;
+      await Tone.start();
+      if (mode === 'stutter') {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyH' }));
+      } else if (mode === 'crush') {
+        graph.master.setBitCrush(true);
+      } else if (mode === 'throwFreeze') {
+        graph.master.setDelayThrow(true);
+        graph.master.setReverbFreeze(true);
+      }
+      await new Promise((r) => setTimeout(r, 120));
+      for (let i = 0; i < 5; i++) {
+        graph.voices.drums.kick.trigger({
+          time: Tone.now() + 0.05 + i * 0.18,
+          velocity: 1,
+          plocks: { filterCutoff: null, pan: null, pitchOffset: null },
+        });
+      }
+      const meter = new Tone.Meter({ smoothing: 0 });
+      graph.master.masterOut.connect(meter);
+      let max = -Infinity;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 1200) {
+        await new Promise((r) => setTimeout(r, 25));
+        const v = meter.getValue();
+        const db = Array.isArray(v) ? v[0] : v;
+        if (db > max) max = db;
+      }
+      meter.dispose();
+      // teardown
+      if (mode === 'stutter') {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyH' }));
+      } else if (mode === 'crush') {
+        graph.master.setBitCrush(false);
+      } else if (mode === 'throwFreeze') {
+        graph.master.setDelayThrow(false);
+        graph.master.setReverbFreeze(false);
+      }
+      return max;
+    }, setup);
+
+  test('the master chain actually passes audio (no muted cycle)', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.getByTestId('transport-toggle').click(); // gesture → context
+    const dryDb = await measureMasterDb(page, 'dry');
+    expect(dryDb).toBeGreaterThan(-40); // silence would be ≈ -Infinity
+    expect(dryDb).toBeLessThanOrEqual(0); // and the limiter holds the top
+  });
+
+  test('STUTTER never amplifies above the dry level', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('transport-toggle').click();
+    const dryDb = await measureMasterDb(page, 'dry');
+    const stutterDb = await measureMasterDb(page, 'stutter');
+    expect(stutterDb).toBeGreaterThan(-40); // still audible
+    expect(stutterDb).toBeLessThanOrEqual(dryDb + 1.5); // never louder
+  });
+
+  test('BIT CRUSH (worklet) and THROW+FREEZE stay audible and bounded', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.getByTestId('transport-toggle').click();
+    const crushDb = await measureMasterDb(page, 'crush');
+    expect(crushDb).toBeGreaterThan(-40);
+    expect(crushDb).toBeLessThanOrEqual(0);
+    const fxDb = await measureMasterDb(page, 'throwFreeze');
+    expect(fxDb).toBeGreaterThan(-40);
+    expect(fxDb).toBeLessThanOrEqual(0); // feedback paths bounded
+  });
+});
+
 test.describe('audio safety — stutter & delay', () => {
   test('H-key stutter spam (20 toggles) never errors or kills the app', async ({
     page,

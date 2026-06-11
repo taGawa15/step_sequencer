@@ -34,6 +34,10 @@
 2. DEBUG → AudioContext が `running` か
 3. iOS: サイレントスイッチ / Bluetooth 出力先
 4. PANIC(Esc)直後は約 0.3 秒ミュートされます(仕様)
+5. MASTER スライダー / KILL 3バンド / DEPTH=100% の STUTTER LAT 残留を確認
+6. 開発者向け: dev 環境ではコンソールで実測可能 —
+   `const {graph,Tone}=window.__seqDebug; const m=new Tone.Meter({smoothing:0}); graph.master.masterOut.connect(m); graph.voices.drums.kick.trigger({time:Tone.now()+0.1,velocity:1,plocks:{filterCutoff:null,pan:null,pitchOffset:null}}); setTimeout(()=>console.log('dB:',m.getValue()),400)`
+   −∞ のままなら音声グラフの問題(過去事例: DelayNode 無しフィードバックサイクルによる仕様上の無音化 → known-issues.md 参照)。`npm run test:e2e` の「audio output」3テストが同件の回帰検知です
 
 ### テンポがおかしい
 - DEBUG → **BPM (actual)** と **BPM (UI)** を比較

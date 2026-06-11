@@ -44,6 +44,15 @@ export interface MasterEffects {
   /** Sum bus for per-track reverb sends. */
   reverbSendInput: Tone.ToneAudioNode;
   /**
+   * Dry sum bus: every track's dry output (and sample players) connect
+   * HERE, one hop before masterInput. DELAY THROW taps this bus — tapping
+   * masterInput instead would route the delay's own return back into the
+   * delay (an instability, and via the FeedbackDelay crossfade's dry leg
+   * a DelayNode-free cycle, which the Web Audio spec answers by MUTING
+   * every node in the cycle — i.e. the whole master bus).
+   */
+  dryInput: Tone.ToneAudioNode;
+  /**
    * Stutter gate stage inside the master chain (pre-limiter). The Stutter
    * LFO drives THIS linear 0..1 gain — never Destination.volume. A linear
    * 'gain' Param is structurally amplification-proof: when Tone's
@@ -53,6 +62,8 @@ export interface MasterEffects {
    * 0..1 on top → ×2 / +6 dB pumping — the live-killing noise bug.)
    */
   stutterGate: Tone.Gain;
+  /** Final pre-destination stage — exposed for diagnostics / metering. */
+  masterOut: Tone.ToneAudioNode;
 
   // ── Master controls ────────────────────────────────────────────────
   setMasterVolume: (db: number, ramp?: number) => void;
@@ -111,8 +122,12 @@ const safeRamp = (param: RampableParam, value: number, time: number) => {
 };
 
 export const createMasterEffects = (): MasterEffects => {
-  // Sum bus: every track's dry output goes here. Aux returns rejoin here too.
+  // Sum bus: aux returns merge here, one hop after the dry bus.
   const masterInput = new Tone.Gain(1);
+  // Dry bus: tracks/samples come in here; DELAY THROW taps here (pre-
+  // return, so the throw can never re-feed the delay's own output).
+  const dryInput = new Tone.Gain(1);
+  dryInput.connect(masterInput);
 
   // 3-band kill EQ
   const killEQ = new Tone.EQ3({
@@ -199,19 +214,26 @@ export const createMasterEffects = (): MasterEffects => {
   reverbFx.generate();
 
   // ── Performance FX wiring ──────────────────────────────────────────
-  // DELAY THROW: a gated tap from the summed bus into the delay line.
-  // Loop gain (throw 0.5 × wet ≤ 1) stays < 1, independent of the
-  // delay's internal feedback (≤ 0.85) — no runaway.
+  // DELAY THROW: a gated tap from the DRY bus into the delay line.
+  // Tapping the dry bus (NOT masterInput) keeps the graph acyclic — the
+  // delay return merges at masterInput, downstream of the tap. It also
+  // bounds the path: internal feedback (≤0.85) is the only recirculation.
   const delayThrowGain = new Tone.Gain(0);
-  masterInput.connect(delayThrowGain);
+  dryInput.connect(delayThrowGain);
   delayThrowGain.connect(delayFx);
 
   // REVERB FREEZE: recirculate reverb output back into its input. At
   // 0.85 the tail sustains near-indefinitely while on, then decays
   // naturally on release. No decay-parameter change → no IR regeneration.
+  // The explicit Delay is LOAD-BEARING, not cosmetic: Tone effects route
+  // input → crossfade-dry-leg → output without a DelayNode, and the Web
+  // Audio spec MUTES every node in a DelayNode-free cycle (this exact
+  // loop silenced the whole app once). 50 ms also adds diffusion.
   const reverbFreezeGain = new Tone.Gain(0);
+  const reverbFreezeDelay = new Tone.Delay(0.05);
   reverbFx.connect(reverbFreezeGain);
-  reverbFreezeGain.connect(reverbFx);
+  reverbFreezeGain.connect(reverbFreezeDelay);
+  reverbFreezeDelay.connect(reverbFx);
 
   // ── Saved user values for toggles ──────────────────────────────────
   let savedDelayWet = 0.3;
@@ -235,9 +257,11 @@ export const createMasterEffects = (): MasterEffects => {
 
   return {
     masterInput,
+    dryInput,
     delaySendInput,
     reverbSendInput,
     stutterGate,
+    masterOut: masterVolume,
 
     setMasterVolume: (db, ramp = 0.05) => {
       userVolumeDb = Math.min(MASTER_VOLUME_MAX, db);
@@ -370,6 +394,7 @@ export const createMasterEffects = (): MasterEffects => {
         panicTimer = null;
       }
       masterInput.dispose();
+      dryInput.dispose();
       killEQ.dispose();
       filterSweepHP.dispose();
       filterSweepLP.dispose();
@@ -386,6 +411,7 @@ export const createMasterEffects = (): MasterEffects => {
       reverbFx.dispose();
       reverbWetGain.dispose();
       reverbFreezeGain.dispose();
+      reverbFreezeDelay.dispose();
     },
   };
 };

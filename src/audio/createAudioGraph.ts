@@ -31,7 +31,9 @@ export const createAudioGraph = (): AudioGraph => {
   const trackInputs = {} as Record<TrackId, Tone.ToneAudioNode>;
   for (const t of TRACKS) {
     const mixer = createTrackMixer({
-      dry: master.masterInput,
+      // Tracks land on the DRY bus (one hop before masterInput) so the
+      // DELAY THROW tap sees them without ever seeing the delay return.
+      dry: master.dryInput,
       delay: master.delaySendInput,
       reverb: master.reverbSendInput,
     });

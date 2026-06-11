@@ -130,7 +130,9 @@ export const Sequencer = () => {
   // ── Sync sample players with audioGraph + sample list ─────────────
   useEffect(() => {
     if (!audioGraph) return;
-    const dest = audioGraph.master.masterInput;
+    // Samples join the DRY bus like every track voice (throwable, and
+    // upstream of the throw tap — see masterEffects.dryInput).
+    const dest = audioGraph.master.dryInput;
     const validIds = new Set(sampler.samples.map((s) => s.id));
     let changed = false;
 

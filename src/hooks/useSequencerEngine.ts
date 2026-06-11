@@ -154,9 +154,22 @@ export const useSequencerEngine = ({
   useEffect(() => {
     const graph = createAudioGraph();
     setAudioGraph(graph);
+    if (import.meta.env.DEV) {
+      // Diagnostics hook for e2e audio assertions and console debugging —
+      // lets tests attach a Meter to master.masterOut and prove the chain
+      // actually passes signal (a muted-cycle regression slipped through
+      // once because no test listened to the output).
+      (window as unknown as Record<string, unknown>).__seqDebug = {
+        graph,
+        Tone,
+      };
+    }
     return () => {
       graph.dispose();
       setAudioGraph(null);
+      if (import.meta.env.DEV) {
+        delete (window as unknown as Record<string, unknown>).__seqDebug;
+      }
     };
   }, []);
 

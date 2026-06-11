@@ -306,18 +306,26 @@ export const usePerformanceControls = (audioGraph: AudioGraph | null) => {
   // lastAppliedRef enables diff application; skipNextSyncRef lets
   // recallSnapshot apply with a long MORPH ramp without this effect
   // immediately re-applying the same values at the default (fast) ramp
-  // and cancelling the glide.
-  const lastAppliedRef = useRef<PerformanceState | null>(null);
+  // and cancelling the glide. The ref is keyed to the GRAPH: a freshly
+  // (re)built graph has default node values, so diffing against state
+  // applied to a previous graph would skip everything and leave the new
+  // graph unconfigured (bites under StrictMode's dev remount).
+  const lastAppliedRef = useRef<{
+    graph: AudioGraph;
+    state: PerformanceState;
+  } | null>(null);
   const skipNextSyncRef = useRef(false);
   useEffect(() => {
     if (!audioGraph) return;
     if (skipNextSyncRef.current) {
       skipNextSyncRef.current = false;
-      lastAppliedRef.current = state;
+      lastAppliedRef.current = { graph: audioGraph, state };
       return;
     }
-    applyState(audioGraph, state, {}, lastAppliedRef.current);
-    lastAppliedRef.current = state;
+    const last = lastAppliedRef.current;
+    const prev = last && last.graph === audioGraph ? last.state : null;
+    applyState(audioGraph, state, {}, prev);
+    lastAppliedRef.current = { graph: audioGraph, state };
   }, [audioGraph, state]);
 
   // ── Setters (typed) ────────────────────────────────────────────────
@@ -388,7 +396,7 @@ export const usePerformanceControls = (audioGraph: AudioGraph | null) => {
       if (audioGraph) {
         skipNextSyncRef.current = true;
         applyState(audioGraph, snap.state, { ramp: morphTime }, null);
-        lastAppliedRef.current = snap.state;
+        lastAppliedRef.current = { graph: audioGraph, state: snap.state };
       }
       setState(snap.state);
     },

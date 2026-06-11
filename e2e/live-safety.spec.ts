@@ -335,7 +335,7 @@ test.describe('audio output — master chain integrity', () => {
     expect(stutterDb).toBeLessThanOrEqual(dryDb + 1.5); // never louder
   });
 
-  test('BIT CRUSH (worklet) and THROW+FREEZE stay audible and bounded', async ({
+  test('BIT CRUSH (native WaveShaper) and THROW+FREEZE stay audible and bounded', async ({
     page,
   }) => {
     await page.goto('/');
@@ -346,6 +346,25 @@ test.describe('audio output — master chain integrity', () => {
     const fxDb = await measureMasterDb(page, 'throwFreeze');
     expect(fxDb).toBeGreaterThan(-40);
     expect(fxDb).toBeLessThanOrEqual(0); // feedback paths bounded
+  });
+
+  test('boot + play logs ZERO app errors (no AudioWorklet rejection)', async ({
+    page,
+  }) => {
+    // The iOS "no sound + error" regression was an AudioWorklet
+    // (Tone.BitCrusher) whose blob addModule rejected with no .catch →
+    // unhandled rejection. The bit crush is now a native WaveShaper, so
+    // the persistent error log must stay empty across boot + play.
+    await page.addInitScript(() =>
+      window.localStorage.removeItem('step-sequencer:errorlog:v1'),
+    );
+    await page.goto('/');
+    await page.getByTestId('transport-toggle').click();
+    await page.waitForTimeout(800);
+    const errors = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('step-sequencer:errorlog:v1') ?? '[]'),
+    );
+    expect(errors).toEqual([]);
   });
 });
 

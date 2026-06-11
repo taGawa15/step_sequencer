@@ -27,6 +27,7 @@ body,
   padding: 0;
   background: var(--bg);
   color: var(--fg);
+  height: 100vh; /* fallback: iOS < 15.4 has no dvh */
   height: 100dvh;
   width: 100%;
   overflow: hidden;

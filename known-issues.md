@@ -46,6 +46,14 @@
 9. **JS バンドルが約 520KB(gzip 147KB)**
    Tone.js 本体が大半。ライブ用途では初回ロード後すべてローカル動作のため実害は小さいですが、気になる場合は manualChunks での分割を検討。
 
+## 修正済み(iOS 無音バグ)
+
+- **iPhone Safari で音が出ない+エラー**: 2つの iOS 固有原因。
+  ① **AudioWorklet(`Tone.BitCrusher`)** を master チェーンに常時挿入していた。Tone の `ToneAudioWorklet` は `audioWorklet.addModule(blobURL)` を **`.catch()` なし**で呼ぶため、`audioWorklet` が無い環境(**非セキュアコンテキスト http:// や旧 iOS**)で **unhandled rejection** → グローバルハンドラがエラー記録。→ BitCrush を **ネイティブ実装(WaveShaper 振幅量子化 + CrossFade)** に置換。AudioWorklet を完全排除し、iOS でも CRUSH が動作。
+  ② **iOS のジェスチャ内 unlock 不足**。`Tone.start()` をジェスチャ同期で先に呼ぶ `unlockAudio()` を新設し、PLAY と**初回タッチ(document capture)+ 中断復帰(visibilitychange)**の両方に配線。
+  併せて **`100dvh`/`62dvh` 等に `vh` フォールバック**を追加(iOS < 15.4 は dvh 未対応でレイアウト崩壊するため)。
+  回帰検知: E2E「boot + play logs ZERO app errors」で worklet rejection の再混入を検出、`audioUnlock` 単体テスト4件、masterOut 実測で crush 可聴(-12.9dB)を確認。
+
 ## 修正済み(音響安全パス A1–A4 後の追加修正)
 
 - **BEAT REPEAT 1/32 長押しで音が破綻**: 旧設計は保持中もシーケンサー本体が鳴り続け、32n ティックと 16n グリッドのヒットが同一モノボイス上で約1ms差で衝突(エンベロープの相互キャンセル=ジッパー音+全声部ユニゾン連打の壁)。**置換型に再設計**: 係合時に直近2拍のヒットをスナップショット捕獲し、保持中は本流をサプレス(再生位置・Draw は継続、解放でシームレス復帰)。実測: 1/32 長押し3秒×2+連打でエラー0・レベル一定

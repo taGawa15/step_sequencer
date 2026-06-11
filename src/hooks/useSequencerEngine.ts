@@ -18,6 +18,7 @@ import {
 import { createAudioGraph, type AudioGraph } from '../audio/createAudioGraph';
 import type { SamplePlayer } from '../audio/samplePlayer';
 import { swingDelaySeconds } from '../utils/swing';
+import { installAudioUnlock, unlockAudio } from '../audio/audioUnlock';
 
 /** Map of drum track id → sample player to fire instead of the built-in voice. */
 export type SampleAssignmentMap = Partial<Record<DrumTrackId, SamplePlayer>>;
@@ -157,6 +158,11 @@ export const useSequencerEngine = ({
   useEffect(() => {
     onStepEventRef.current = onStepEvent;
   }, [onStepEvent]);
+
+  // Global first-gesture audio unlock + iOS interruption recovery. The
+  // PLAY button also unlocks, but this catches any earlier interaction
+  // (and re-resumes after iOS suspends the context mid-session).
+  useEffect(() => installAudioUnlock(), []);
 
   // Audio graph is built once and kept alive for the lifetime of the engine.
   useEffect(() => {
@@ -301,19 +307,11 @@ export const useSequencerEngine = ({
   }, [bpm]);
 
   const play = useCallback(async () => {
-    // iOS Safari hardening — the AudioContext must be resumed during the
-    // user gesture frame. Tone.start() does this internally, but on some
-    // iOS versions we also need to call resume() on the raw context. Doing
-    // both is harmless on other browsers.
-    try {
-      const rawCtx = Tone.getContext().rawContext as AudioContext;
-      if (rawCtx && rawCtx.state !== 'running') {
-        await rawCtx.resume();
-      }
-    } catch {
-      /* ignore */
-    }
-    await Tone.start();
+    // iOS Safari hardening — Tone.start() resumes the context and MUST be
+    // kicked off synchronously inside this gesture; unlockAudio() calls it
+    // first, then resumes the raw context as a backup. (A global
+    // first-gesture unlock is installed at mount too — see below.)
+    await unlockAudio();
 
     // Warm up the output: schedule a silent gain change to make iOS commit
     // the audio graph before the first real trigger fires.

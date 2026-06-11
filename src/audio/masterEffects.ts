@@ -150,10 +150,22 @@ export const createMasterEffects = (): MasterEffects => {
     Q: 0.7,
   });
 
-  // Bit crusher — permanently in the chain, fully dry (wet 0) until the
-  // BIT CRUSH performance FX engages it via a short crossfade.
-  const bitCrusher = new Tone.BitCrusher(BIT_CRUSH_BITS);
-  bitCrusher.wet.value = 0;
+  // Bit crush — NATIVE (WaveShaper amplitude quantizer + CrossFade), NOT
+  // Tone.BitCrusher. BitCrusher is an AudioWorklet: on iOS Safari (and
+  // any non-secure context) `audioWorklet.addModule` rejects, and Tone
+  // attaches no .catch → an unhandled rejection our global handler logs
+  // as an error. Worse, a permanently-inserted worklet in the master
+  // path is an iOS liability. A WaveShaper is pure native WebAudio:
+  // synchronous, worklet-free, works on every browser.
+  const crushLevels = Math.pow(2, BIT_CRUSH_BITS); // 16 levels @ 4 bits
+  const bitCrushShaper = new Tone.WaveShaper((x: number) => {
+    // x ∈ [-1,1] → quantize to `crushLevels` steps → back to [-1,1]
+    const norm = (x + 1) / 2;
+    const q = Math.round(norm * (crushLevels - 1)) / (crushLevels - 1);
+    return Math.max(-1, Math.min(1, q * 2 - 1));
+  }, 4096);
+  // fade 0 = dry only, 1 = crushed only. Engaged FX rides at BIT_CRUSH_WET.
+  const bitCrushFade = new Tone.CrossFade(0);
 
   // Compressor (bypassed via ratio = 1)
   const compressor = new Tone.Compressor({
@@ -175,12 +187,13 @@ export const createMasterEffects = (): MasterEffects => {
   // Final volume stage
   const masterVolume = new Tone.Volume(0);
 
-  // Wire main chain
-  masterInput.chain(
-    killEQ,
-    filterSweepHP,
-    filterSweepLP,
-    bitCrusher,
+  // Wire main chain. The bit-crush stage is a CrossFade (a=dry, b=wet),
+  // so it can't be a single .chain() link — split around it.
+  masterInput.chain(killEQ, filterSweepHP, filterSweepLP);
+  filterSweepLP.connect(bitCrushFade.a); // dry leg
+  filterSweepLP.connect(bitCrushShaper);
+  bitCrushShaper.connect(bitCrushFade.b); // wet (quantized) leg
+  bitCrushFade.chain(
     compressor,
     stutterGate,
     limiter,
@@ -335,8 +348,8 @@ export const createMasterEffects = (): MasterEffects => {
       g.linearRampTo(on ? REVERB_FREEZE_FEEDBACK : 0, on ? 0.05 : 0.25);
     },
     setBitCrush: (on) => {
-      bitCrusher.wet.cancelScheduledValues(Tone.now());
-      bitCrusher.wet.linearRampTo(on ? BIT_CRUSH_WET : 0, 0.03);
+      bitCrushFade.fade.cancelScheduledValues(Tone.now());
+      bitCrushFade.fade.linearRampTo(on ? BIT_CRUSH_WET : 0, 0.03);
     },
 
     setCompressorEnabled: (on, ramp = 0.05) => {
@@ -371,8 +384,8 @@ export const createMasterEffects = (): MasterEffects => {
       delayThrowGain.gain.linearRampTo(0, 0.03);
       reverbFreezeGain.gain.cancelScheduledValues(Tone.now());
       reverbFreezeGain.gain.linearRampTo(0, 0.03);
-      bitCrusher.wet.cancelScheduledValues(Tone.now());
-      bitCrusher.wet.linearRampTo(0, 0.03);
+      bitCrushFade.fade.cancelScheduledValues(Tone.now());
+      bitCrushFade.fade.linearRampTo(0, 0.03);
       // After a beat of silence, restore volume; user can re-engage wets.
       panicTimer = window.setTimeout(() => {
         panicTimer = null;
@@ -398,7 +411,8 @@ export const createMasterEffects = (): MasterEffects => {
       killEQ.dispose();
       filterSweepHP.dispose();
       filterSweepLP.dispose();
-      bitCrusher.dispose();
+      bitCrushShaper.dispose();
+      bitCrushFade.dispose();
       compressor.dispose();
       stutterGate.dispose();
       limiter.dispose();

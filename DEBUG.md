@@ -30,10 +30,11 @@
 ## よくある症状と対処
 
 ### 音が出ない
-1. PLAY を**タップ/クリック**で押したか(自動再生制限)
-2. DEBUG → AudioContext が `running` か
-3. iOS: サイレントスイッチ / Bluetooth 出力先
+1. PLAY を**タップ/クリック**で押したか(自動再生制限)。初回タッチ + PLAY の両方で AudioContext を unlock します
+2. DEBUG → AudioContext が `running` か(`suspended` のままなら一度画面をタップ)
+3. iOS: サイレントスイッチ / Bluetooth 出力先 / 着信や Siri 後は画面タップで自動復帰
 4. PANIC(Esc)直後は約 0.3 秒ミュートされます(仕様)
+5. **http:// で開いていないか**(スマホからローカル IP に http アクセスすると非セキュアコンテキスト。本番は必ず HTTPS / Vercel を使用)。AudioWorklet は排除済みなので http でも無音にはなりませんが、マイク録音は HTTPS 必須
 5. MASTER スライダー / KILL 3バンド / DEPTH=100% の STUTTER LAT 残留を確認
 6. 開発者向け: dev 環境ではコンソールで実測可能 —
    `const {graph,Tone}=window.__seqDebug; const m=new Tone.Meter({smoothing:0}); graph.master.masterOut.connect(m); graph.voices.drums.kick.trigger({time:Tone.now()+0.1,velocity:1,plocks:{filterCutoff:null,pan:null,pitchOffset:null}}); setTimeout(()=>console.log('dB:',m.getValue()),400)`

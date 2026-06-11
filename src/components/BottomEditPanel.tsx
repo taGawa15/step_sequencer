@@ -11,7 +11,8 @@ export type BottomTab =
   | 'perf'
   | 'snap'
   | 'timeline'
-  | 'sample';
+  | 'sample'
+  | 'debug';
 
 const TAB_LABEL: Record<BottomTab, string> = {
   mixer: 'MIXER',
@@ -22,9 +23,10 @@ const TAB_LABEL: Record<BottomTab, string> = {
   snap: 'SNAP',
   timeline: 'TIMELINE',
   sample: 'SAMPLE',
+  debug: 'DEBUG',
 };
 
-/** Compact labels used on mobile so 8 tabs fit without overflow. */
+/** Compact labels used on mobile so 9 tabs fit without overflow. */
 const TAB_LABEL_MOBILE: Record<BottomTab, string> = {
   mixer: 'MIX',
   note: 'NOTE',
@@ -34,17 +36,22 @@ const TAB_LABEL_MOBILE: Record<BottomTab, string> = {
   snap: 'SNAP',
   timeline: 'TL',
   sample: 'SMPL',
+  debug: 'DBG',
 };
 
 const TABS_BY_VIEWPORT: Record<Viewport, BottomTab[]> = {
   // Desktop side columns already host mixer (left) and fx (right) so
   // the bottom panel carries step-edit + clipboard + perf-FX tabs.
-  desktop: ['note', 'step', 'timeline', 'perf', 'sample'],
-  tablet: ['mixer', 'note', 'step', 'timeline', 'perf', 'sample'],
+  desktop: ['note', 'step', 'timeline', 'perf', 'sample', 'debug'],
+  tablet: ['mixer', 'note', 'step', 'timeline', 'perf', 'sample', 'debug'],
   // Mobile has no side columns — split FX into MAIN / PERF tabs to keep
-  // each tab content scroll-free.
-  mobile: ['mixer', 'note', 'step', 'fx', 'perf', 'snap', 'timeline', 'sample'],
+  // each tab content compact (panels scroll internally when needed).
+  mobile: ['mixer', 'note', 'step', 'fx', 'perf', 'snap', 'timeline', 'sample', 'debug'],
 };
+
+const ALL_TABS: readonly BottomTab[] = [
+  'mixer', 'note', 'step', 'fx', 'perf', 'snap', 'timeline', 'sample', 'debug',
+];
 
 interface UIState {
   bottomTab: BottomTab;
@@ -55,7 +62,10 @@ const loadUIState = (): UIState => {
     const raw = localStorage.getItem(STORAGE_KEY_UI);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<UIState>;
-      if (typeof parsed.bottomTab === 'string') {
+      if (
+        typeof parsed.bottomTab === 'string' &&
+        (ALL_TABS as readonly string[]).includes(parsed.bottomTab)
+      ) {
         return { bottomTab: parsed.bottomTab as BottomTab };
       }
     }

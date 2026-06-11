@@ -183,17 +183,15 @@ export const createVoices = (
   bass.volume.value = -8;
 
   // ── LEAD ─────────────────────────────────────────────────────────────
-
+  // NOTE: the lead voice is DRY by design. Earlier builds hard-wired a
+  // FeedbackDelay (wet 0.18) here, which made LEAD echo even with every
+  // user-facing delay control at zero. Delay is now exclusively opt-in
+  // via the master delay send (MIXER → DLY) / DELAY THROW.
   const leadFx = makePlockFx(trackInputs.lead);
-  const leadDelay = new Tone.FeedbackDelay({
-    delayTime: '8n.',
-    feedback: 0.22,
-    wet: 0.18,
-  }).connect(leadFx.inputNode);
   const lead = new Tone.Synth({
     oscillator: { type: 'triangle' },
     envelope: { attack: 0.005, decay: 0.18, sustain: 0.3, release: 0.4 },
-  }).connect(leadDelay);
+  }).connect(leadFx.inputNode);
   lead.volume.value = -12;
 
   // ── Triggers ─────────────────────────────────────────────────────────
@@ -307,7 +305,6 @@ export const createVoices = (
       panic: () => lead.triggerRelease(),
       dispose: () => {
         lead.dispose();
-        leadDelay.dispose();
         leadFx.dispose();
       },
     },

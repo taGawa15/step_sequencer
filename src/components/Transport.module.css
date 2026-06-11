@@ -83,6 +83,34 @@
   border-color: var(--fg);
 }
 
+.swing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.swingLabel {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.swingSlider {
+  width: clamp(70px, 12vw, 140px);
+  accent-color: var(--accent);
+  touch-action: manipulation;
+}
+
+.swingValue {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  min-width: 34px;
+  text-align: right;
+}
+
 .helpBtn {
   font: inherit;
   font-size: 14px;

@@ -9,11 +9,17 @@ import type { PerformanceState, SnapshotMap } from './audio';
  */
 export interface ProjectSnapshot {
   bpm: number;
+  /** Swing percent 0..75. Missing in pre-2.0 saves — normalized to 0. */
+  swing: number;
   loopLength: LoopLengthType;
   pattern: Pattern;
   mutes: MuteMap;
   performance: PerformanceState;
   snapshots: SnapshotMap;
+  // NOTE (spec): mic-sample assignments are deliberately NOT part of a
+  // snapshot — sample blobs live in device-local IndexedDB and would not
+  // survive export/import. Loading a timeline therefore keeps the current
+  // sample assignments as-is. See README "Timeline 保存 / 読込の仕様".
 }
 
 export type TimelineSlotId = '1' | '2' | '3' | '4';

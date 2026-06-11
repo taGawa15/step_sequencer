@@ -114,8 +114,47 @@
   gap: 6px;
   flex: 1;
   min-height: 0;
-  /* Strict no-scroll — only first N samples are visible */
-  overflow: hidden;
+  /* Page-level no-scroll stays — but THIS panel scrolls internally so
+     every sample remains reachable (deletable / reassignable). */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 4px;
+}
+
+.trimRow {
+  display: grid;
+  grid-template-columns: 36px 1fr 1fr 96px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 2px;
+}
+
+.trimRow input[type='range'] {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--accent);
+  touch-action: manipulation;
+}
+
+.trimLabel {
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+}
+
+.trimValue {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .empty {
@@ -132,7 +171,6 @@
   align-items: center;
   gap: 6px;
   padding: 4px 0;
-  border-bottom: 1px solid var(--line-soft);
   font-size: 10px;
 }
 

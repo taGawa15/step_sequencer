@@ -102,8 +102,11 @@ const normalizeSynthStep = (raw: unknown, track: SynthTrackDef): SynthStep => {
  * — including v2 (no components, no drum velocity) and partially-corrupted
  * v3 — and returns a fully-formed v3 Pattern. Returns null if the top-level
  * shape is unrecognizable (missing drums or synths).
+ *
+ * Exported so Timeline snapshot validation can reuse the exact same
+ * tolerant rules (see utils/projectSnapshot.ts).
  */
-const normalizeKindSplitPattern = (raw: unknown): Pattern | null => {
+export const normalizeKindSplitPattern = (raw: unknown): Pattern | null => {
   if (!raw || typeof raw !== 'object') return null;
   const data = raw as { drums?: unknown; synths?: unknown };
   if (!data.drums || typeof data.drums !== 'object') return null;

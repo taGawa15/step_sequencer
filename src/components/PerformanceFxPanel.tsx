@@ -1,3 +1,4 @@
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   PERF_FX_RATE_LABEL,
   PERF_FX_RATE_OPTIONS,
@@ -12,6 +13,9 @@ interface Props {
   beatActive: boolean;
   stutterActive: boolean;
   tapeActive: boolean;
+  throwActive: boolean;
+  freezeActive: boolean;
+  crushActive: boolean;
   onSetBeatRate: (r: RepeatRate) => void;
   onSetBeatMode: (m: FxMode) => void;
   onToggleBeat: () => void;
@@ -26,6 +30,18 @@ interface Props {
   onSetTapeTime: (t: number) => void;
   onSetTapeMode: (m: 'release' | 'resume') => void;
   onTriggerTape: () => void;
+  onSetThrowMode: (m: FxMode) => void;
+  onToggleThrow: () => void;
+  onStartThrow: () => void;
+  onStopThrow: () => void;
+  onSetFreezeMode: (m: FxMode) => void;
+  onToggleFreeze: () => void;
+  onStartFreeze: () => void;
+  onStopFreeze: () => void;
+  onSetCrushMode: (m: FxMode) => void;
+  onToggleCrush: () => void;
+  onStartCrush: () => void;
+  onStopCrush: () => void;
 }
 
 const TAPE_TIMES = [0.25, 0.5, 1.0, 2.0];
@@ -35,6 +51,9 @@ export const PerformanceFxPanel = ({
   beatActive,
   stutterActive,
   tapeActive,
+  throwActive,
+  freezeActive,
+  crushActive,
   onSetBeatRate,
   onSetBeatMode,
   onToggleBeat,
@@ -49,29 +68,63 @@ export const PerformanceFxPanel = ({
   onSetTapeTime,
   onSetTapeMode,
   onTriggerTape,
+  onSetThrowMode,
+  onToggleThrow,
+  onStartThrow,
+  onStopThrow,
+  onSetFreezeMode,
+  onToggleFreeze,
+  onStartFreeze,
+  onStopFreeze,
+  onSetCrushMode,
+  onToggleCrush,
+  onStartCrush,
+  onStopCrush,
 }: Props) => {
-  // Momentary buttons use mousedown/up; latch buttons toggle.
+  // Momentary buttons use Pointer Events — one unified stream for mouse,
+  // touch and pen. The old mouse+touch mix double-fired on touch devices
+  // (touchend is followed by a synthetic mousedown/mouseup, producing an
+  // audible restart blip). Pointer capture keeps the release reliable
+  // even when the finger slides off the button; pointercancel (e.g. the
+  // browser steals the gesture for scrolling) also releases.
+  const momentaryProps = (start: () => void, stop: () => void) => ({
+    onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture is best-effort */
+      }
+      start();
+    },
+    onPointerUp: stop,
+    onPointerCancel: stop,
+  });
+
   const beatBtnProps =
     state.beatRepeatMode === 'momentary'
-      ? {
-          onMouseDown: onStartBeat,
-          onMouseUp: onStopBeat,
-          onMouseLeave: beatActive ? onStopBeat : undefined,
-          onTouchStart: onStartBeat,
-          onTouchEnd: onStopBeat,
-        }
+      ? momentaryProps(onStartBeat, onStopBeat)
       : { onClick: onToggleBeat };
 
   const stutterBtnProps =
     state.stutterMode === 'momentary'
-      ? {
-          onMouseDown: onStartStutter,
-          onMouseUp: onStopStutter,
-          onMouseLeave: stutterActive ? onStopStutter : undefined,
-          onTouchStart: onStartStutter,
-          onTouchEnd: onStopStutter,
-        }
+      ? momentaryProps(onStartStutter, onStopStutter)
       : { onClick: onToggleStutter };
+
+  const throwBtnProps =
+    state.throwMode === 'momentary'
+      ? momentaryProps(onStartThrow, onStopThrow)
+      : { onClick: onToggleThrow };
+
+  const freezeBtnProps =
+    state.freezeMode === 'momentary'
+      ? momentaryProps(onStartFreeze, onStopFreeze)
+      : { onClick: onToggleFreeze };
+
+  const crushBtnProps =
+    state.crushMode === 'momentary'
+      ? momentaryProps(onStartCrush, onStopCrush)
+      : { onClick: onToggleCrush };
 
   return (
     <section className={styles.panel} aria-label="performance fx">
@@ -185,6 +238,63 @@ export const PerformanceFxPanel = ({
               RES
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* ── Delay Throw ──────────────────────────────────────────── */}
+      <div className={styles.fx}>
+        <div className={styles.fxHeader}>
+          <span className={styles.fxName}>DELAY THROW</span>
+        </div>
+        <button
+          type="button"
+          className={`${styles.bigBtn} ${throwActive ? styles.bigBtnOn : ''}`}
+          aria-pressed={throwActive}
+          data-testid="fx-throw"
+          {...throwBtnProps}
+        >
+          {throwActive ? '● THROW' : 'THROW'}
+        </button>
+        <div className={styles.controls}>
+          <ModeToggle value={state.throwMode} onChange={onSetThrowMode} />
+        </div>
+      </div>
+
+      {/* ── Reverb Freeze ────────────────────────────────────────── */}
+      <div className={styles.fx}>
+        <div className={styles.fxHeader}>
+          <span className={styles.fxName}>REVERB FREEZE</span>
+        </div>
+        <button
+          type="button"
+          className={`${styles.bigBtn} ${freezeActive ? styles.bigBtnOn : ''}`}
+          aria-pressed={freezeActive}
+          data-testid="fx-freeze"
+          {...freezeBtnProps}
+        >
+          {freezeActive ? '● FREEZE' : 'FREEZE'}
+        </button>
+        <div className={styles.controls}>
+          <ModeToggle value={state.freezeMode} onChange={onSetFreezeMode} />
+        </div>
+      </div>
+
+      {/* ── Bit Crush ────────────────────────────────────────────── */}
+      <div className={styles.fx}>
+        <div className={styles.fxHeader}>
+          <span className={styles.fxName}>BIT CRUSH</span>
+        </div>
+        <button
+          type="button"
+          className={`${styles.bigBtn} ${crushActive ? styles.bigBtnOn : ''}`}
+          aria-pressed={crushActive}
+          data-testid="fx-crush"
+          {...crushBtnProps}
+        >
+          {crushActive ? '● CRUSH' : 'CRUSH'}
+        </button>
+        <div className={styles.controls}>
+          <ModeToggle value={state.crushMode} onChange={onSetCrushMode} />
         </div>
       </div>
     </section>

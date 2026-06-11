@@ -3,9 +3,11 @@
   grid-template-columns: 1fr;
   gap: 8px;
   padding: 10px 12px 12px;
-  height: 100%;
+  height: auto;
+  min-height: 100%;
   box-sizing: border-box;
-  overflow: hidden;
+  /* Parent tab body scrolls; never clip the third FX block. */
+  overflow: visible;
 }
 
 /* Desktop / tablet bottom panel is short and wide — 3 columns side by

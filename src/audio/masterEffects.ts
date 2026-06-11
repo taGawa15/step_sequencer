@@ -43,6 +43,16 @@ export interface MasterEffects {
   delaySendInput: Tone.ToneAudioNode;
   /** Sum bus for per-track reverb sends. */
   reverbSendInput: Tone.ToneAudioNode;
+  /**
+   * Stutter gate stage inside the master chain (pre-limiter). The Stutter
+   * LFO drives THIS linear 0..1 gain — never Destination.volume. A linear
+   * 'gain' Param is structurally amplification-proof: when Tone's
+   * connectSignal resets the intrinsic value to 0, "0" means silence, and
+   * the summed LFO signal (0..1) is the whole gain. (With the old
+   * Destination.volume approach "0" meant 0 dB = ×1, and the LFO ADDED
+   * 0..1 on top → ×2 / +6 dB pumping — the live-killing noise bug.)
+   */
+  stutterGate: Tone.Gain;
 
   // ── Master controls ────────────────────────────────────────────────
   setMasterVolume: (db: number, ramp?: number) => void;
@@ -60,6 +70,14 @@ export interface MasterEffects {
   setReverbWet: (v: number, ramp?: number) => void;
   setReverbDecay: (s: number) => void;
 
+  // ── Performance FX (master-bus, momentary/latch) ───────────────────
+  /** Throw the summed bus into the delay line while on; tail rings out. */
+  setDelayThrow: (on: boolean) => void;
+  /** Recirculate the reverb output for a pseudo-freeze while on. */
+  setReverbFreeze: (on: boolean) => void;
+  /** Crossfade a fixed-depth bit crusher in/out of the master chain. */
+  setBitCrush: (on: boolean) => void;
+
   setCompressorEnabled: (on: boolean, ramp?: number) => void;
   setCompressorThreshold: (db: number, ramp?: number) => void;
   setCompressorRatio: (r: number, ramp?: number) => void;
@@ -71,6 +89,14 @@ export interface MasterEffects {
 }
 
 const RAMP_DEFAULT = 0.03;
+
+// Performance-FX gain staging. All three are deliberately conservative —
+// every path stays loop-gain < 1 and the master Limiter (-0.5 dB) sits
+// after them as the final backstop.
+const DELAY_THROW_LEVEL = 0.5; // bus → delay send while thrown
+const REVERB_FREEZE_FEEDBACK = 0.85; // reverb out → reverb in recirculation
+const BIT_CRUSH_WET = 0.6;
+const BIT_CRUSH_BITS = 4;
 
 interface RampableParam {
   cancelScheduledValues: (time: number) => unknown;
@@ -109,6 +135,11 @@ export const createMasterEffects = (): MasterEffects => {
     Q: 0.7,
   });
 
+  // Bit crusher — permanently in the chain, fully dry (wet 0) until the
+  // BIT CRUSH performance FX engages it via a short crossfade.
+  const bitCrusher = new Tone.BitCrusher(BIT_CRUSH_BITS);
+  bitCrusher.wet.value = 0;
+
   // Compressor (bypassed via ratio = 1)
   const compressor = new Tone.Compressor({
     threshold: -18,
@@ -119,6 +150,9 @@ export const createMasterEffects = (): MasterEffects => {
   });
   // Last-saved user values, used when toggling enabled back on
   let savedCompRatio = 3;
+
+  // Stutter gate — linear 0..1 gain, pre-limiter (see interface docs).
+  const stutterGate = new Tone.Gain(1);
 
   // Limiter — always on, last brick before volume
   const limiter = new Tone.Limiter(-0.5);
@@ -131,7 +165,9 @@ export const createMasterEffects = (): MasterEffects => {
     killEQ,
     filterSweepHP,
     filterSweepLP,
+    bitCrusher,
     compressor,
+    stutterGate,
     limiter,
     masterVolume,
     Tone.getDestination(),
@@ -162,21 +198,51 @@ export const createMasterEffects = (): MasterEffects => {
   // regenerate. (Not awaited; first ~1s may have no reverb.)
   reverbFx.generate();
 
+  // ── Performance FX wiring ──────────────────────────────────────────
+  // DELAY THROW: a gated tap from the summed bus into the delay line.
+  // Loop gain (throw 0.5 × wet ≤ 1) stays < 1, independent of the
+  // delay's internal feedback (≤ 0.85) — no runaway.
+  const delayThrowGain = new Tone.Gain(0);
+  masterInput.connect(delayThrowGain);
+  delayThrowGain.connect(delayFx);
+
+  // REVERB FREEZE: recirculate reverb output back into its input. At
+  // 0.85 the tail sustains near-indefinitely while on, then decays
+  // naturally on release. No decay-parameter change → no IR regeneration.
+  const reverbFreezeGain = new Tone.Gain(0);
+  reverbFx.connect(reverbFreezeGain);
+  reverbFreezeGain.connect(reverbFx);
+
   // ── Saved user values for toggles ──────────────────────────────────
   let savedDelayWet = 0.3;
   let savedReverbWet = 0.3;
+
+  // ── Same-value guards ──────────────────────────────────────────────
+  // Tone.Reverb's `decay` setter re-generates the impulse response on an
+  // OfflineContext EVERY time it is assigned — even with an unchanged
+  // value. Guarding here makes redundant re-applies (and slider drags on
+  // unrelated params) free. Same idea for delayTime, where a redundant
+  // assignment is cheap but a jump is clicky — we ramp instead.
+  let lastReverbDecay = 2.5;
+  let lastDelayTime: DelayTime = '8n';
+
+  // ── Panic bookkeeping ──────────────────────────────────────────────
+  // The user's intended master volume, tracked explicitly so a second
+  // PANIC during the cut-ramp can never capture a mid-ramp (-∞) value
+  // and "restore" silence.
+  let userVolumeDb = 0;
+  let panicTimer: number | null = null;
 
   return {
     masterInput,
     delaySendInput,
     reverbSendInput,
+    stutterGate,
 
-    setMasterVolume: (db, ramp = 0.05) =>
-      safeRamp(
-        masterVolume.volume,
-        Math.min(MASTER_VOLUME_MAX, db),
-        ramp,
-      ),
+    setMasterVolume: (db, ramp = 0.05) => {
+      userVolumeDb = Math.min(MASTER_VOLUME_MAX, db);
+      safeRamp(masterVolume.volume, userVolumeDb, ramp);
+    },
 
     setFilterSweep: (v, ramp = 0.05) => {
       safeRamp(filterSweepLP.frequency, sweepToLPFreq(v), ramp);
@@ -204,7 +270,20 @@ export const createMasterEffects = (): MasterEffects => {
     setDelayFeedback: (v, ramp = 0.05) =>
       safeRamp(delayFx.feedback, Math.min(DELAY_FEEDBACK_MAX, v), ramp),
     setDelayTime: (time) => {
-      delayFx.delayTime.value = time;
+      if (time === lastDelayTime) return;
+      lastDelayTime = time;
+      // Duck & glide: (1) dip the delay RETURN, (2) glide the delay-line
+      // length while inaudible, (3) restore the return. The glide (ramp,
+      // never a value jump) means no waveform discontinuity inside the
+      // feedback loop — only a pitch sweep — and the duck hides that
+      // sweep. Safe to mash: every step re-ramps from the current value.
+      const now = Tone.now();
+      const wet = delayWetGain.gain;
+      wet.cancelScheduledValues(now);
+      wet.linearRampTo(0, 0.025, now);
+      delayFx.delayTime.cancelScheduledValues(now);
+      delayFx.delayTime.linearRampTo(time, 0.05, now + 0.03);
+      wet.linearRampTo(savedDelayWet, 0.08, now + 0.09);
     },
 
     setReverbEnabled: (on, ramp = 0.05) =>
@@ -214,8 +293,26 @@ export const createMasterEffects = (): MasterEffects => {
       safeRamp(reverbWetGain.gain, v, ramp);
     },
     setReverbDecay: (s) => {
-      reverbFx.decay = Math.min(REVERB_DECAY_MAX, Math.max(REVERB_DECAY_MIN, s));
-      // Tone.Reverb auto-generates impulse on next play after `decay` change.
+      const clamped = Math.min(REVERB_DECAY_MAX, Math.max(REVERB_DECAY_MIN, s));
+      if (clamped === lastReverbDecay) return; // skip redundant generate()
+      lastReverbDecay = clamped;
+      reverbFx.decay = clamped; // triggers ONE async IR generate
+    },
+
+    setDelayThrow: (on) => {
+      const g = delayThrowGain.gain;
+      g.cancelScheduledValues(Tone.now());
+      g.linearRampTo(on ? DELAY_THROW_LEVEL : 0, 0.04);
+    },
+    setReverbFreeze: (on) => {
+      const g = reverbFreezeGain.gain;
+      g.cancelScheduledValues(Tone.now());
+      // Slightly slower release so the frozen tail hands back gracefully.
+      g.linearRampTo(on ? REVERB_FREEZE_FEEDBACK : 0, on ? 0.05 : 0.25);
+    },
+    setBitCrush: (on) => {
+      bitCrusher.wet.cancelScheduledValues(Tone.now());
+      bitCrusher.wet.linearRampTo(on ? BIT_CRUSH_WET : 0, 0.03);
     },
 
     setCompressorEnabled: (on, ramp = 0.05) => {
@@ -237,17 +334,27 @@ export const createMasterEffects = (): MasterEffects => {
     },
 
     panic: () => {
-      const wasVolume = masterVolume.volume.value;
+      // Re-entrant safe: restore always targets the explicit user volume
+      // (never a mid-ramp reading) and only one timer is ever pending.
+      if (panicTimer !== null) window.clearTimeout(panicTimer);
       // Cut master immediately
       safeRamp(masterVolume.volume, -Infinity, 0.02);
       // Drop aux wets so existing tails are silenced too
       safeRamp(delayWetGain.gain, 0, 0.05);
       safeRamp(reverbWetGain.gain, 0, 0.05);
+      // Kill performance-FX feedback paths and the crusher outright.
+      delayThrowGain.gain.cancelScheduledValues(Tone.now());
+      delayThrowGain.gain.linearRampTo(0, 0.03);
+      reverbFreezeGain.gain.cancelScheduledValues(Tone.now());
+      reverbFreezeGain.gain.linearRampTo(0, 0.03);
+      bitCrusher.wet.cancelScheduledValues(Tone.now());
+      bitCrusher.wet.linearRampTo(0, 0.03);
       // After a beat of silence, restore volume; user can re-engage wets.
-      window.setTimeout(() => {
+      panicTimer = window.setTimeout(() => {
+        panicTimer = null;
         safeRamp(
           masterVolume.volume,
-          Math.min(MASTER_VOLUME_MAX, wasVolume),
+          Math.min(MASTER_VOLUME_MAX, userVolumeDb),
           0.2,
         );
         // Restore wets to last user-set values
@@ -257,19 +364,28 @@ export const createMasterEffects = (): MasterEffects => {
     },
 
     dispose: () => {
+      // A pending restore must not touch disposed nodes.
+      if (panicTimer !== null) {
+        window.clearTimeout(panicTimer);
+        panicTimer = null;
+      }
       masterInput.dispose();
       killEQ.dispose();
       filterSweepHP.dispose();
       filterSweepLP.dispose();
+      bitCrusher.dispose();
       compressor.dispose();
+      stutterGate.dispose();
       limiter.dispose();
       masterVolume.dispose();
       delaySendInput.dispose();
       delayFx.dispose();
       delayWetGain.dispose();
+      delayThrowGain.dispose();
       reverbSendInput.dispose();
       reverbFx.dispose();
       reverbWetGain.dispose();
+      reverbFreezeGain.dispose();
     },
   };
 };

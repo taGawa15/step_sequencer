@@ -4,9 +4,11 @@
   gap: 10px;
   padding: 12px 16px 14px;
   background: var(--line-soft);
-  height: 100%;
+  height: auto;
+  min-height: 100%;
   box-sizing: border-box;
-  overflow: hidden;
+  /* Parent tab body scrolls; never clip rows out of reach. */
+  overflow: visible;
 }
 
 .empty {

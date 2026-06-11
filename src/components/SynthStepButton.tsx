@@ -1,26 +1,29 @@
 import { memo } from 'react';
 import { parseNote } from '../scales';
-import type { SynthStep } from '../types';
+import type { SynthStep, SynthTrackId } from '../types';
 import styles from './SynthStepButton.module.css';
 
 interface Props {
+  trackId: SynthTrackId;
   index: number;
   step: SynthStep;
   current: boolean;
   selected: boolean;
   modified: boolean;
   outOfLoop?: boolean;
-  onClick: () => void;
+  /** Stable callback — see StepButton for the memo() rationale. */
+  onStepClick: (trackId: SynthTrackId, index: number) => void;
 }
 
 const SynthStepButtonImpl = ({
+  trackId,
   index,
   step,
   current,
   selected,
   modified,
   outOfLoop,
-  onClick,
+  onStepClick,
 }: Props) => {
   const isDownbeat = index % 4 === 0;
   const { name, octave } = parseNote(step.note);
@@ -41,7 +44,7 @@ const SynthStepButtonImpl = ({
     <button
       type="button"
       className={className}
-      onClick={onClick}
+      onClick={() => onStepClick(trackId, index)}
       aria-pressed={step.active}
       aria-label={`step ${index + 1}${step.active ? ` ${step.note}` : ''}`}
     >

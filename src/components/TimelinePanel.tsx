@@ -7,6 +7,8 @@ interface Props {
   timelines: Record<TimelineSlotId, TimelineSlot | null>;
   activeId: TimelineSlotId;
   confirmLoadGuard: boolean;
+  /** Slots whose stored data was dropped at startup (old/broken format). */
+  invalidSlots?: readonly TimelineSlotId[];
   onSelect: (id: TimelineSlotId) => void;
   onSave: () => void;
   onLoad: () => void;
@@ -21,6 +23,7 @@ export const TimelinePanel = ({
   timelines,
   activeId,
   confirmLoadGuard,
+  invalidSlots = [],
   onSelect,
   onSave,
   onLoad,
@@ -41,6 +44,13 @@ export const TimelinePanel = ({
         <span>確認</span>
       </label>
     </header>
+
+    {invalidSlots.length > 0 && (
+      <div className={styles.invalidNote} data-testid="timeline-invalid-note">
+        スロット {invalidSlots.join(', ')} は古い形式または破損していたため
+        読み込めませんでした（SAVE で上書きすると再利用できます）
+      </div>
+    )}
 
     <div className={styles.slots}>
       {TIMELINE_SLOT_IDS.map((id) => {

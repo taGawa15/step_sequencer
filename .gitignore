@@ -26,3 +26,8 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ── テスト成果物 ──
+test-results/
+playwright-report/
+coverage/

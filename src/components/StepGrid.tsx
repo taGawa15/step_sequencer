@@ -86,6 +86,7 @@ const StepGridImpl = ({
                   return (
                     <StepButton
                       key={globalIdx}
+                      trackId={track.id}
                       index={globalIdx}
                       on={step.active}
                       current={currentStep === globalIdx}
@@ -96,7 +97,7 @@ const StepGridImpl = ({
                       }
                       modified={hasComponentModifications(step.components)}
                       outOfLoop={!inLoop}
-                      onClick={() => onDrumClick(track.id, globalIdx)}
+                      onStepClick={onDrumClick}
                     />
                   );
                 })}
@@ -143,6 +144,7 @@ const StepGridImpl = ({
                   return (
                     <SynthStepButton
                       key={globalIdx}
+                      trackId={track.id}
                       index={globalIdx}
                       step={step}
                       current={currentStep === globalIdx}
@@ -153,7 +155,7 @@ const StepGridImpl = ({
                       }
                       modified={hasComponentModifications(step.components)}
                       outOfLoop={!inLoop}
-                      onClick={() => onSynthClick(track.id, globalIdx)}
+                      onStepClick={onSynthClick}
                     />
                   );
                 })}

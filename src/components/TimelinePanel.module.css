@@ -3,9 +3,11 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px 14px;
-  height: 100%;
+  height: auto;
+  min-height: 100%;
   box-sizing: border-box;
-  overflow: hidden;
+  /* Parent tab body scrolls; keep all slots/actions reachable. */
+  overflow: visible;
 }
 
 /* Desktop / tablet: 2 columns. Slots+actions left, clipboard right.
@@ -14,15 +16,17 @@
   .panel {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
       'header   header'
+      'note     note'
       'slots    clip'
       'actions  clip';
     column-gap: 16px;
     row-gap: 8px;
   }
   .header { grid-area: header; }
+  .invalidNote { grid-area: note; }
   .slots { grid-area: slots; }
   .actions { grid-area: actions; }
   .clipboardSlot {
@@ -67,6 +71,16 @@
   accent-color: var(--accent);
   width: 14px;
   height: 14px;
+}
+
+.invalidNote {
+  font-size: 9px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: 3px;
+  padding: 6px 8px;
 }
 
 .slots {

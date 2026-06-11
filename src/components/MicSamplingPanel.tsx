@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DRUM_TRACKS } from '../constants';
 import type { DrumTrackId } from '../types';
-import type { SampleMetadata } from '../types/sample';
+import { normalizeTrim, type SampleMetadata } from '../types/sample';
 import styles from './MicSamplingPanel.module.css';
 
 interface Props {
@@ -77,14 +77,16 @@ export const MicSamplingPanel = ({
           </div>
         )}
         {samples.map((s) => (
-          <SampleRow
-            key={s.id}
-            sample={s}
-            onRename={(name) => onRename(s.id, name)}
-            onUpdate={(p) => onUpdate(s.id, p)}
-            onDelete={() => onDelete(s.id)}
-            onAssign={(t) => onAssign(s.id, t)}
-          />
+          <div key={s.id} className={styles.entry}>
+            <SampleRow
+              sample={s}
+              onRename={(name) => onRename(s.id, name)}
+              onUpdate={(p) => onUpdate(s.id, p)}
+              onDelete={() => onDelete(s.id)}
+              onAssign={(t) => onAssign(s.id, t)}
+            />
+            <TrimRow sample={s} onUpdate={(p) => onUpdate(s.id, p)} />
+          </div>
         ))}
       </div>
     </section>
@@ -181,11 +183,59 @@ const SampleRow = ({
         type="button"
         className={`${styles.smallBtn} ${styles.danger}`}
         onClick={onDelete}
+        aria-label={`delete ${sample.name}`}
       >
         ×
       </button>
 
       <audio ref={audioRef} src={sample.url} preload="auto" />
+    </div>
+  );
+};
+
+/**
+ * START / END trim sliders. Values are normalized on every change so the
+ * window always stays valid (start < end, inside the recording length).
+ */
+const TrimRow = ({
+  sample,
+  onUpdate,
+}: {
+  sample: SampleMetadata;
+  onUpdate: (patch: Partial<SampleMetadata>) => void;
+}) => {
+  const dur = sample.durationSec > 0 ? sample.durationSec : 0;
+  const start = sample.trimStart ?? 0;
+  const end = sample.trimEnd ?? dur;
+
+  const commit = (rawStart: number, rawEnd: number) => {
+    onUpdate(normalizeTrim(rawStart, rawEnd >= dur ? null : rawEnd, dur));
+  };
+
+  return (
+    <div className={styles.trimRow}>
+      <span className={styles.trimLabel}>TRIM</span>
+      <input
+        type="range"
+        min={0}
+        max={Math.max(0.01, dur)}
+        step={0.01}
+        value={start}
+        onChange={(e) => commit(Number(e.target.value), end)}
+        aria-label="trim start"
+      />
+      <input
+        type="range"
+        min={0}
+        max={Math.max(0.01, dur)}
+        step={0.01}
+        value={end}
+        onChange={(e) => commit(start, Number(e.target.value))}
+        aria-label="trim end"
+      />
+      <span className={styles.trimValue}>
+        {start.toFixed(2)}–{end.toFixed(2)}s
+      </span>
     </div>
   );
 };

@@ -25,7 +25,13 @@ export const KeyboardHelpModal = ({ open, onClose }: Props) => {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.code === 'Escape') onClose();
+      // Esc / ? close the modal. Global shortcuts are suspended while the
+      // modal is open (Sequencer passes suspended:true), so Esc here can
+      // never double as PANIC.
+      if (e.code === 'Escape' || (e.code === 'Slash' && e.shiftKey)) {
+        e.preventDefault();
+        onClose();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);

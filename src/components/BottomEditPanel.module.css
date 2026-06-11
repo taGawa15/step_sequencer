@@ -52,9 +52,12 @@
 }
 
 .body {
-  /* Strict no-scroll — content must fit. Per-tab content uses tabs /
-     compact layouts to avoid overflow. */
-  overflow: hidden;
+  /* Page-level no-scroll stays absolute, but the tab BODY may scroll
+     internally — clipped-but-unreachable controls are worse than a
+     scrollbar mid-performance. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   min-height: 0;
   min-width: 0;
 }

@@ -70,11 +70,13 @@ export const SHORTCUTS: readonly ShortcutDescriptor[] = [
 
   // ── Clipboard ──
   { id: 'clipboard.copy', label: 'Copy current loop', hint: `${cmdLabel}C`, codes: ['KeyC'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.copy', group: 'clipboard' },
-  { id: 'clipboard.paste', label: 'Paste at cursor', hint: `${cmdLabel}V`, codes: ['KeyV'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.paste', group: 'clipboard' },
+  { id: 'clipboard.paste', label: 'Paste at cursor', hint: `${cmdLabel}V`, codes: ['KeyV'], modifiers: { meta: isMac, ctrl: !isMac, shift: false }, action: 'clipboard.paste', group: 'clipboard' },
   { id: 'clipboard.pasteRepeat', label: 'Paste Repeat Fill', hint: `⇧${cmdLabel}V`, codes: ['KeyV'], modifiers: { meta: isMac, ctrl: !isMac, shift: true }, action: 'clipboard.pasteRepeat', group: 'clipboard' },
   { id: 'clipboard.duplicate', label: 'Duplicate (append)', hint: `${cmdLabel}D`, codes: ['KeyD'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.duplicate', group: 'clipboard' },
   { id: 'clipboard.undo', label: 'Undo last paste', hint: `${cmdLabel}Z`, codes: ['KeyZ'], modifiers: { meta: isMac, ctrl: !isMac }, action: 'clipboard.undo', group: 'clipboard' },
 
   // ── Help ──
-  { id: 'help.toggle', label: 'Show shortcuts', hint: '?', codes: ['Slash', 'KeyH'], modifiers: { shift: false }, action: 'help.toggle', group: 'help' },
+  // NOTE: KeyH belongs to fx.stutter — Help is Shift+/ ("?") ONLY so a
+  // live performer reaching for Stutter can never open a modal instead.
+  { id: 'help.toggle', label: 'Show shortcuts', hint: '?', codes: ['Slash'], modifiers: { shift: true }, action: 'help.toggle', group: 'help' },
 ];

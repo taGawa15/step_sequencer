@@ -90,7 +90,8 @@ const normalizeTrackSends = (raw: unknown): TrackSends => {
   return def;
 };
 
-const normalizePerformance = (raw: unknown): PerformanceState => {
+/** Exported for Timeline snapshot validation (utils/projectSnapshot.ts). */
+export const normalizePerformance = (raw: unknown): PerformanceState => {
   const d = defaultPerformanceState();
   if (!raw || typeof raw !== 'object') return d;
   const r = raw as Partial<PerformanceState> & Record<string, unknown>;
@@ -125,7 +126,8 @@ const normalizePerformance = (raw: unknown): PerformanceState => {
   };
 };
 
-const normalizeSnapshots = (raw: unknown): SnapshotMap => {
+/** Exported for Timeline snapshot validation (utils/projectSnapshot.ts). */
+export const normalizeSnapshots = (raw: unknown): SnapshotMap => {
   const result = defaultSnapshots();
   if (!raw || typeof raw !== 'object') return result;
   const obj = raw as Record<string, { empty?: unknown; state?: unknown } | undefined>;
@@ -198,30 +200,74 @@ interface ApplyOpts {
   ramp?: number;
 }
 
-const applyState = (graph: AudioGraph, s: PerformanceState, opts: ApplyOpts = {}) => {
+/**
+ * Push UI values into Tone nodes. When `prev` is given, only parameters
+ * whose value actually changed are touched — this is what keeps a filter
+ * sweep drag from re-assigning Reverb decay (= IR regeneration) dozens of
+ * times per second, and what lets an in-flight snapshot MORPH keep ramping
+ * while the user tweaks an unrelated control.
+ */
+export const applyState = (
+  graph: AudioGraph,
+  s: PerformanceState,
+  opts: ApplyOpts = {},
+  prev: PerformanceState | null = null,
+) => {
   const r = opts.ramp;
   const m = graph.master;
-  m.setMasterVolume(s.masterVolume, r);
-  m.setFilterSweep(s.filterSweep, r);
-  m.setFilterResonance(s.filterResonance, r);
-  m.setKill('low', s.kill.low);
-  m.setKill('mid', s.kill.mid);
-  m.setKill('high', s.kill.high);
-  m.setDelayEnabled(s.delay.enabled, r);
-  m.setDelayWet(s.delay.wet, r);
-  m.setDelayFeedback(s.delay.feedback, r);
-  m.setDelayTime(s.delay.time);
-  m.setReverbEnabled(s.reverb.enabled, r);
-  m.setReverbWet(s.reverb.wet, r);
-  m.setReverbDecay(s.reverb.decay);
-  m.setCompressorEnabled(s.compressor.enabled, r);
-  m.setCompressorThreshold(s.compressor.threshold, r);
-  m.setCompressorRatio(s.compressor.ratio, r);
+  if (!prev || prev.masterVolume !== s.masterVolume) m.setMasterVolume(s.masterVolume, r);
+  if (!prev || prev.filterSweep !== s.filterSweep) m.setFilterSweep(s.filterSweep, r);
+  if (!prev || prev.filterResonance !== s.filterResonance) m.setFilterResonance(s.filterResonance, r);
+  if (!prev || prev.kill.low !== s.kill.low) m.setKill('low', s.kill.low);
+  if (!prev || prev.kill.mid !== s.kill.mid) m.setKill('mid', s.kill.mid);
+  if (!prev || prev.kill.high !== s.kill.high) m.setKill('high', s.kill.high);
+  if (!prev || prev.delay.enabled !== s.delay.enabled) m.setDelayEnabled(s.delay.enabled, r);
+  if (!prev || prev.delay.wet !== s.delay.wet) m.setDelayWet(s.delay.wet, r);
+  if (!prev || prev.delay.feedback !== s.delay.feedback) m.setDelayFeedback(s.delay.feedback, r);
+  if (!prev || prev.delay.time !== s.delay.time) m.setDelayTime(s.delay.time);
+  if (!prev || prev.reverb.enabled !== s.reverb.enabled) m.setReverbEnabled(s.reverb.enabled, r);
+  if (!prev || prev.reverb.wet !== s.reverb.wet) m.setReverbWet(s.reverb.wet, r);
+  if (!prev || prev.reverb.decay !== s.reverb.decay) m.setReverbDecay(s.reverb.decay);
+  if (!prev || prev.compressor.enabled !== s.compressor.enabled) m.setCompressorEnabled(s.compressor.enabled, r);
+  if (!prev || prev.compressor.threshold !== s.compressor.threshold) m.setCompressorThreshold(s.compressor.threshold, r);
+  if (!prev || prev.compressor.ratio !== s.compressor.ratio) m.setCompressorRatio(s.compressor.ratio, r);
   for (const t of TRACKS) {
     const send = s.trackSends[t.id];
-    graph.tracks[t.id].setDelaySend(send.delay, r);
-    graph.tracks[t.id].setReverbSend(send.reverb, r);
+    const prevSend = prev?.trackSends[t.id];
+    if (!prevSend || prevSend.delay !== send.delay) graph.tracks[t.id].setDelaySend(send.delay, r);
+    if (!prevSend || prevSend.reverb !== send.reverb) graph.tracks[t.id].setReverbSend(send.reverb, r);
   }
+};
+
+/**
+ * Pure helper for tests: list which top-level audio parameters applyState
+ * would touch when moving from `prev` to `next`.
+ */
+export const diffPerformanceParams = (
+  prev: PerformanceState,
+  next: PerformanceState,
+): string[] => {
+  const touched: string[] = [];
+  if (prev.masterVolume !== next.masterVolume) touched.push('masterVolume');
+  if (prev.filterSweep !== next.filterSweep) touched.push('filterSweep');
+  if (prev.filterResonance !== next.filterResonance) touched.push('filterResonance');
+  (['low', 'mid', 'high'] as const).forEach((b) => {
+    if (prev.kill[b] !== next.kill[b]) touched.push(`kill.${b}`);
+  });
+  (['enabled', 'wet', 'feedback', 'time'] as const).forEach((k) => {
+    if (prev.delay[k] !== next.delay[k]) touched.push(`delay.${k}`);
+  });
+  (['enabled', 'wet', 'decay'] as const).forEach((k) => {
+    if (prev.reverb[k] !== next.reverb[k]) touched.push(`reverb.${k}`);
+  });
+  (['enabled', 'threshold', 'ratio'] as const).forEach((k) => {
+    if (prev.compressor[k] !== next.compressor[k]) touched.push(`compressor.${k}`);
+  });
+  for (const t of TRACKS) {
+    if (prev.trackSends[t.id].delay !== next.trackSends[t.id].delay) touched.push(`track.${t.id}.delay`);
+    if (prev.trackSends[t.id].reverb !== next.trackSends[t.id].reverb) touched.push(`track.${t.id}.reverb`);
+  }
+  return touched;
 };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -256,10 +302,22 @@ export const usePerformanceControls = (audioGraph: AudioGraph | null) => {
     }
   }, [snapshots]);
 
-  // Sync state → audio graph whenever either changes
+  // Sync state → audio graph whenever either changes.
+  // lastAppliedRef enables diff application; skipNextSyncRef lets
+  // recallSnapshot apply with a long MORPH ramp without this effect
+  // immediately re-applying the same values at the default (fast) ramp
+  // and cancelling the glide.
+  const lastAppliedRef = useRef<PerformanceState | null>(null);
+  const skipNextSyncRef = useRef(false);
   useEffect(() => {
     if (!audioGraph) return;
-    applyState(audioGraph, state);
+    if (skipNextSyncRef.current) {
+      skipNextSyncRef.current = false;
+      lastAppliedRef.current = state;
+      return;
+    }
+    applyState(audioGraph, state, {}, lastAppliedRef.current);
+    lastAppliedRef.current = state;
   }, [audioGraph, state]);
 
   // ── Setters (typed) ────────────────────────────────────────────────
@@ -323,10 +381,16 @@ export const usePerformanceControls = (audioGraph: AudioGraph | null) => {
     (slot: SnapshotSlot) => {
       const snap = snapshots[slot];
       if (snap.empty) return;
-      // Update React state instantly (UI snaps to new values)
+      // Update React state instantly (UI snaps to new values) but make
+      // the sync effect skip one round — the audio glide below owns the
+      // transition at the user's MORPH time. Skip only when we actually
+      // applied to a live graph, otherwise the regular sync must run.
+      if (audioGraph) {
+        skipNextSyncRef.current = true;
+        applyState(audioGraph, snap.state, { ramp: morphTime }, null);
+        lastAppliedRef.current = snap.state;
+      }
       setState(snap.state);
-      // Audio rampTo for smooth morph (visual is snapped, audio glides)
-      if (audioGraph) applyState(audioGraph, snap.state, { ramp: morphTime });
     },
     [snapshots, audioGraph, morphTime],
   );

@@ -35,9 +35,12 @@ import { useNoteEditor } from '../hooks/useNoteEditor';
 import { usePerformanceFx } from '../hooks/usePerformanceFx';
 import { useKeyboardShortcuts, type ShortcutHandlerMap } from '../hooks/useKeyboardShortcuts';
 import {
+  createPendingSamplePlayer,
   createSamplePlayerFromUrl,
   type SamplePlayer,
 } from '../audio/samplePlayer';
+import { SWING_DEFAULT, clampSwing } from '../utils/swing';
+import { DebugPanel } from './DebugPanel';
 import type { ProjectSnapshot, TimelineSlotId } from '../types/timeline';
 import { AppShell } from './AppShell';
 import { Transport } from './Transport';
@@ -72,6 +75,7 @@ export const Sequencer = () => {
   } = usePersistedPattern();
 
   const [bpm, setBpm] = useState(DEFAULT_BPM);
+  const [swing, setSwing] = useState(SWING_DEFAULT);
   const [mutes, setMutes] = useState(createEmptyMutes);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -104,9 +108,18 @@ export const Sequencer = () => {
     return map;
   }, [sampler.samples, playersVersion]);
 
-  const { isPlaying, currentStep, play, stop, panic, audioGraph } = useSequencerEngine({
+  const {
+    isPlaying,
+    currentStep,
+    play,
+    stop,
+    panic,
+    audioGraph,
+    lastFiredRef,
+  } = useSequencerEngine({
     pattern,
     bpm,
+    swing,
     mutes,
     loopLength: loop.loopLength,
     sampleAssignments,
@@ -121,7 +134,9 @@ export const Sequencer = () => {
     const validIds = new Set(sampler.samples.map((s) => s.id));
     let changed = false;
 
-    // Dispose removed
+    // Dispose removed. Pending placeholders implement a no-op dispose,
+    // so deleting a sample mid-load is safe (used to TypeError → white
+    // screen with the old `{ ready:false }` cast).
     for (const [id, player] of Array.from(playersRef.current.entries())) {
       if (!validIds.has(id)) {
         player.dispose();
@@ -133,31 +148,50 @@ export const Sequencer = () => {
     // Create newly added
     for (const s of sampler.samples) {
       if (!playersRef.current.has(s.id)) {
-        // Mark a placeholder so we don't double-create while async load runs
-        const sentinel = { ready: false } as SamplePlayer;
+        // Placeholder so we don't double-create while the async load runs.
+        const sentinel = createPendingSamplePlayer();
         playersRef.current.set(s.id, sentinel);
         createSamplePlayerFromUrl(s.url, dest)
           .then((player) => {
+            // The sample may have been deleted while loading — then the
+            // freshly created player must be torn down, not re-inserted.
+            if (playersRef.current.get(s.id) !== sentinel) {
+              player.dispose();
+              return;
+            }
             playersRef.current.set(s.id, player);
             player.setGain(s.gain);
             player.setPitch(s.pitch);
+            player.setTrim(s.trimStart, s.trimEnd);
             setPlayersVersion((v) => v + 1);
           })
           .catch(() => {
-            playersRef.current.delete(s.id);
+            if (playersRef.current.get(s.id) === sentinel) {
+              playersRef.current.delete(s.id);
+            }
           });
         changed = true;
       } else {
-        // Sync gain/pitch on existing
+        // Sync gain/pitch/trim on existing
         const player = playersRef.current.get(s.id);
         if (player && player.ready) {
           player.setGain(s.gain);
           player.setPitch(s.pitch);
+          player.setTrim(s.trimStart, s.trimEnd);
         }
       }
     }
     if (changed) setPlayersVersion((v) => v + 1);
   }, [sampler.samples, audioGraph]);
+
+  // Unmount: tear down every live sample player.
+  useEffect(
+    () => () => {
+      for (const player of playersRef.current.values()) player.dispose();
+      playersRef.current.clear();
+    },
+    [],
+  );
 
   // ── Selection / step handlers (existing) ──────────────────────────
   const handleToggleMute = useCallback((id: TrackId) => {
@@ -175,11 +209,12 @@ export const Sequencer = () => {
   const handleSynthClick = useCallback(
     (trackId: SynthTrackId, idx: number) => {
       setSelection({ kind: 'synth', trackId, stepIndex: idx });
-      if (!pattern.synths[trackId][idx].active) {
-        setSynthActive(trackId, idx, true);
-      }
+      // setSynthActive no-ops when already active, so this callback needs
+      // no pattern dependency — keeping it stable lets StepGrid's memoized
+      // buttons skip re-rendering on every pattern/currentStep change.
+      setSynthActive(trackId, idx, true);
     },
-    [pattern.synths, setSynthActive],
+    [setSynthActive],
   );
 
   const handleUpdateDrumStep = useCallback(
@@ -241,9 +276,12 @@ export const Sequencer = () => {
   }, [selection, pattern]);
 
   // ── Timeline integration ──────────────────────────────────────────
+  // NOTE: mic-sample assignments are deliberately NOT captured — sample
+  // blobs are device-local IndexedDB data (see types/timeline.ts).
   const getCurrentSnapshot = useCallback<() => ProjectSnapshot>(
     () => ({
       bpm,
+      swing,
       loopLength: loop.loopLength,
       pattern: JSON.parse(JSON.stringify(pattern)) as typeof pattern,
       mutes: { ...mutes },
@@ -254,12 +292,13 @@ export const Sequencer = () => {
         JSON.stringify(performance.snapshots),
       ) as typeof performance.snapshots,
     }),
-    [bpm, loop.loopLength, pattern, mutes, performance.state, performance.snapshots],
+    [bpm, swing, loop.loopLength, pattern, mutes, performance],
   );
 
   const applySnapshot = useCallback(
     (snap: ProjectSnapshot) => {
       setBpm(snap.bpm);
+      setSwing(clampSwing(snap.swing));
       loop.setLoopLength(snap.loopLength);
       replacePattern(snap.pattern);
       setMutes(snap.mutes);
@@ -297,37 +336,52 @@ export const Sequencer = () => {
     [loop],
   );
 
-  // ── Performance FX (Beat Repeat / Stutter Gate / Tape Stop) ───────
-  // The Beat Repeat tick re-fires whatever's on the current step right now.
-  const onBeatRepeatTick = useCallback(() => {
-    if (!audioGraph) return;
-    const step = currentStep < 0 ? 0 : currentStep;
-    const time = Tone.now() + 0.005;
-    for (const t of DRUM_TRACKS) {
-      if (mutes[t.id]) continue;
-      const dStep = pattern.drums[t.id][step];
-      if (!dStep?.active) continue;
-      audioGraph.voices.drums[t.id].trigger({
-        time,
-        velocity: dStep.velocity,
-        plocks: NEUTRAL_PLOCKS,
-      });
-    }
-    for (const t of SYNTH_TRACKS) {
-      if (mutes[t.id]) continue;
-      const sStep = pattern.synths[t.id][step];
-      if (!sStep?.active) continue;
-      audioGraph.voices.synths[t.id].trigger({
-        note: sStep.note,
-        duration: sStep.duration,
-        time,
-        velocity: sStep.velocity,
-        plocks: NEUTRAL_PLOCKS,
-      });
-    }
-  }, [audioGraph, currentStep, pattern, mutes]);
+  // ── Performance FX (Beat Repeat / Stutter / Tape / Throw / Freeze / Crush)
+  // Beat Repeat re-fires each track's LAST ACTUALLY-FIRED hit (engine's
+  // lastFiredRef), windowed to the last two beats. Repeating the current
+  // grid cell instead is silent on sparse patterns — the old "FX does
+  // nothing" complaint. `time` is the Tone.Loop's precise scheduled time
+  // so retriggers stay on the grid; +1ms keeps the retrigger's envelope
+  // cancel from eating a sequencer note scheduled at exactly that time.
+  const onBeatRepeatTick = useCallback(
+    (time: number) => {
+      if (!audioGraph) return;
+      const fireTime = time + 0.001;
+      const windowSec = Tone.Time('2n').toSeconds(); // last 2 beats
+      const fired = lastFiredRef.current;
+      for (const t of DRUM_TRACKS) {
+        if (mutes[t.id]) continue;
+        const hit = fired.drums[t.id];
+        if (!hit || time - hit.at > windowSec) continue;
+        audioGraph.voices.drums[t.id].trigger({
+          time: fireTime,
+          velocity: hit.velocity,
+          plocks: NEUTRAL_PLOCKS,
+        });
+      }
+      for (const t of SYNTH_TRACKS) {
+        if (mutes[t.id]) continue;
+        const hit = fired.synths[t.id];
+        if (!hit || time - hit.at > windowSec) continue;
+        audioGraph.voices.synths[t.id].trigger({
+          note: hit.note,
+          duration: hit.duration,
+          time: fireTime,
+          velocity: hit.velocity,
+          plocks: NEUTRAL_PLOCKS,
+        });
+      }
+    },
+    [audioGraph, lastFiredRef, mutes],
+  );
 
-  const perfFx = usePerformanceFx({ onBeatRepeatTick });
+  // Tape Stop "release" completion stops the transport (then the FX layer
+  // silently restores the saved BPM) — never leaves a 5 BPM crawl.
+  const perfFx = usePerformanceFx({
+    audioGraph,
+    onBeatRepeatTick,
+    onTapeRelease: stop,
+  });
 
   // Combined panic — original engine panic + FX panic.
   const panicAll = useCallback(() => {
@@ -434,16 +488,20 @@ export const Sequencer = () => {
     ],
   );
 
-  useKeyboardShortcuts(handlers);
+  // Suspend every global shortcut while the Help modal is open — the
+  // modal owns Esc, so closing Help can never fire PANIC (M5).
+  useKeyboardShortcuts(handlers, { suspended: helpOpen });
 
   // ── Slot content for AppShell ─────────────────────────────────────
   const transport = (
     <Transport
       isPlaying={isPlaying}
       bpm={bpm}
+      swing={swing}
       onPlay={play}
       onStop={stop}
       onBpmChange={setBpm}
+      onSwingChange={(v) => setSwing(clampSwing(v))}
       onClear={clearPattern}
       onOpenHelp={() => setHelpOpen(true)}
       recording={sampler.recording}
@@ -529,6 +587,9 @@ export const Sequencer = () => {
       beatActive={perfFx.beatActive}
       stutterActive={perfFx.stutterActive}
       tapeActive={perfFx.tapeActive}
+      throwActive={perfFx.throwActive}
+      freezeActive={perfFx.freezeActive}
+      crushActive={perfFx.crushActive}
       onSetBeatRate={perfFx.setBeatRepeatRate}
       onSetBeatMode={perfFx.setBeatRepeatMode}
       onToggleBeat={perfFx.toggleBeatRepeat}
@@ -543,6 +604,18 @@ export const Sequencer = () => {
       onSetTapeTime={perfFx.setTapeStopTime}
       onSetTapeMode={perfFx.setTapeStopMode}
       onTriggerTape={perfFx.triggerTapeStop}
+      onSetThrowMode={perfFx.setThrowMode}
+      onToggleThrow={perfFx.toggleThrow}
+      onStartThrow={perfFx.startThrow}
+      onStopThrow={perfFx.stopThrow}
+      onSetFreezeMode={perfFx.setFreezeMode}
+      onToggleFreeze={perfFx.toggleFreeze}
+      onStartFreeze={perfFx.startFreeze}
+      onStopFreeze={perfFx.stopFreeze}
+      onSetCrushMode={perfFx.setCrushMode}
+      onToggleCrush={perfFx.toggleCrush}
+      onStartCrush={perfFx.startCrush}
+      onStopCrush={perfFx.stopCrush}
     />
   );
 
@@ -564,6 +637,7 @@ export const Sequencer = () => {
       timelines={timeline.timelines}
       activeId={timeline.activeId}
       confirmLoadGuard={timeline.confirmLoadGuard}
+      invalidSlots={timeline.invalidSlots}
       onSelect={(id: TimelineSlotId) => timeline.select(id)}
       onSave={() => timeline.save()}
       onLoad={() => timeline.load()}
@@ -599,6 +673,80 @@ export const Sequencer = () => {
     />
   );
 
+  // FX status snapshot for the Debug Panel — one row per performance FX
+  // so "UI says on, audio says nothing" can be diagnosed at a glance.
+  const fxStatus = [
+    {
+      name: 'FILTER SWEEP',
+      active: performance.state.filterSweep !== 0,
+      detail:
+        performance.state.filterSweep === 0
+          ? 'open'
+          : `${performance.state.filterSweep > 0 ? 'HP' : 'LP'} ${Math.abs(performance.state.filterSweep)} / Q ${performance.state.filterResonance.toFixed(1)}`,
+      last: null as number | null,
+    },
+    {
+      name: 'BEAT REPEAT',
+      active: perfFx.beatActive,
+      detail: perfFx.state.beatRepeatRate,
+      last: perfFx.lastTrigger.beat,
+    },
+    {
+      name: 'STUTTER',
+      active: perfFx.stutterActive,
+      detail: `${perfFx.state.stutterRate} depth ${Math.round(perfFx.state.stutterDepth * 100)}%`,
+      last: perfFx.lastTrigger.stutter,
+    },
+    {
+      name: 'TAPE STOP',
+      active: perfFx.tapeActive,
+      detail: `${perfFx.state.tapeStopTime}s ${perfFx.state.tapeStopMode}`,
+      last: perfFx.lastTrigger.tape,
+    },
+    {
+      name: 'DELAY THROW',
+      active: perfFx.throwActive,
+      detail: 'send 0.5',
+      last: perfFx.lastTrigger.throw,
+    },
+    {
+      name: 'REVERB FREEZE',
+      active: perfFx.freezeActive,
+      detail: 'fb 0.85',
+      last: perfFx.lastTrigger.freeze,
+    },
+    {
+      name: 'BIT CRUSH',
+      active: perfFx.crushActive,
+      detail: 'wet 0.6 / 4bit',
+      last: perfFx.lastTrigger.crush,
+    },
+    {
+      name: 'DELAY (master)',
+      active: performance.state.delay.enabled,
+      detail: `wet ${performance.state.delay.wet.toFixed(2)} fb ${performance.state.delay.feedback.toFixed(2)} ${performance.state.delay.time}`,
+      last: null,
+    },
+    {
+      name: 'REVERB (master)',
+      active: performance.state.reverb.enabled,
+      detail: `wet ${performance.state.reverb.wet.toFixed(2)} ${performance.state.reverb.decay.toFixed(1)}s`,
+      last: null,
+    },
+  ];
+
+  const debugPanel = (
+    <DebugPanel
+      bpmState={bpm}
+      swing={swing}
+      isPlaying={isPlaying}
+      currentStep={currentStep}
+      fxStatus={fxStatus}
+      fxWarning={perfFx.fxWarning}
+      routingOk={audioGraph !== null}
+    />
+  );
+
   const tabContent: Record<BottomTab, React.ReactNode> = {
     mixer: mixerPanel,
     note: noteEditor,
@@ -608,6 +756,7 @@ export const Sequencer = () => {
     snap: snapshotsStandalone,
     timeline: timelinePanel,
     sample: samplePanel,
+    debug: debugPanel,
   };
 
   const noteTabEnabled = resolved?.kind === 'synth';

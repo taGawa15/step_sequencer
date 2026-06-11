@@ -15,27 +15,72 @@ const RATE_TO_HZ = (rate: RepeatRate, bpm: number): number => {
 };
 
 /**
+ * Maximum stutter depth. depth 1.0 would gate to full silence; capping at
+ * 0.85 keeps a -16 dB floor so the effect is dramatic but the output can
+ * never read as "the sound cut out" — and (by construction, since the
+ * gate is a linear 0..1 gain inside the master chain) it can NEVER get
+ * louder than the dry signal.
+ */
+export const STUTTER_DEPTH_MAX = 0.85;
+/** Fade applied when the stutter gate engages/releases (anti-click). */
+const STUTTER_RELEASE_SEC = 0.015;
+
+/** Minimal Param surface the stutter gate needs (Tone.Param<'gain'>). */
+export interface StutterGateParam {
+  cancelScheduledValues: (time: number) => unknown;
+  linearRampTo: (value: number, rampTime: number, startTime?: number) => unknown;
+}
+
+/**
  * Bundled live performance FX:
  *   - Beat Repeat: schedules extra trigger ticks via Tone.Loop. The
- *     consumer supplies the actual trigger work.
- *   - Stutter Gate: modulates Tone.Destination.volume with a square LFO.
- *     We use the global destination so we don't have to splice new
- *     nodes into the existing master chain.
- *   - Tape Stop: ramps Tone.Transport.bpm toward 5 BPM over the
- *     configured time, then either stays released or rampBacks.
+ *     consumer receives the Loop's precise scheduled `time` so retriggers
+ *     land on the grid (NOT Tone.now(), which would jitter by lookahead).
+ *   - Stutter Gate: drives the master chain's dedicated linear stutter
+ *     gate (MasterEffects.stutterGate) with a square LFO. It must NEVER
+ *     touch Tone.Destination.volume: connectSignal resets a Param's
+ *     intrinsic value with "0", which on the dB-typed destination volume
+ *     converts to ×1 linear — the LFO then SUMS on top, pumping the
+ *     master at up to ×2 (+6 dB) after the limiter. That was the
+ *     "stutter = sudden loud noise" bug.
+ *   - Tape Stop: ramps Tone.Transport.bpm toward 5 BPM. BPM bookkeeping
+ *     is guarded so re-triggering mid-stop can never corrupt the saved
+ *     tempo, and PANIC only restores BPM when a tape stop is actually
+ *     in flight (no "0.9 heuristic").
  */
 export interface PerformanceFx {
-  startBeatRepeat: (rate: RepeatRate, onTick: () => void) => void;
+  startBeatRepeat: (rate: RepeatRate, onTick: (time: number) => void) => void;
   stopBeatRepeat: () => void;
   setBeatRepeatRate: (rate: RepeatRate) => void;
 
-  startStutter: (rate: RepeatRate, depth: number) => void;
+  /**
+   * Engage the stutter gate. Returns false (no-op) when `gate` is null —
+   * i.e. the audio graph isn't ready — so UI state can stay truthful.
+   */
+  startStutter: (
+    rate: RepeatRate,
+    depth: number,
+    gate: StutterGateParam | null,
+  ) => boolean;
   stopStutter: () => void;
   setStutterDepth: (depth: number) => void;
 
-  /** Returns the saved BPM so the caller can also restore manually. */
-  startTapeStop: (seconds: number, onComplete: () => void) => number;
+  /**
+   * Begin a tape stop. Returns false (and does nothing) when one is
+   * already in flight — callers can rely on this as the single source of
+   * truth, because React state updates are async and can race a double
+   * key press.
+   */
+  startTapeStop: (seconds: number, onComplete: () => void) => boolean;
+  /** Ramp BPM back to the value saved by startTapeStop (resume mode). */
   resumeTapeStop: (seconds: number) => void;
+  /**
+   * End a tape stop without audible ramp-back (release mode — call after
+   * the transport has been stopped). Restores the saved BPM silently so
+   * the next Play starts at the right tempo.
+   */
+  finishTapeStop: () => void;
+  isTapeStopActive: () => boolean;
 
   panic: () => void;
   dispose: () => void;
@@ -44,29 +89,58 @@ export interface PerformanceFx {
 export const createPerformanceFx = (): PerformanceFx => {
   // ── Beat Repeat ───────────────────────────────────────────────
   let beatLoop: Tone.Loop | null = null;
-  let lastTickFn: (() => void) | null = null;
+  let lastTickFn: ((time: number) => void) | null = null;
 
-  const buildBeatLoop = (rate: RepeatRate, onTick: () => void) => {
+  const buildBeatLoop = (rate: RepeatRate, onTick: (time: number) => void) => {
     if (beatLoop) {
       beatLoop.stop();
       beatLoop.dispose();
     }
-    beatLoop = new Tone.Loop((_time) => onTick(), rate);
+    beatLoop = new Tone.Loop((time) => onTick(time), rate);
     beatLoop.start(0);
   };
 
   // ── Stutter Gate ──────────────────────────────────────────────
-  // Modulate Tone.Destination's master volume with an LFO. Min/max are
-  // dB values: 0 dB = open, -60 dB ≈ silent.
+  // Square LFO → master stutterGate.gain (linear 0..1). min = gate floor
+  // (1 - depth), max = 1 (unity). Amplification is impossible.
   let stutterLfo: Tone.LFO | null = null;
+  let stutterGateParam: StutterGateParam | null = null;
+
+  const gateFloor = (depth: number): number =>
+    1 - Math.min(STUTTER_DEPTH_MAX, Math.max(0, depth));
+
+  const releaseStutterGate = () => {
+    if (!stutterGateParam) return;
+    try {
+      // connectSignal zeroed the intrinsic value; after the LFO is gone
+      // the gate would sit at silence — fade it back to unity (≈15 ms,
+      // doubles as the anti-click release).
+      stutterGateParam.cancelScheduledValues(Tone.now());
+      stutterGateParam.linearRampTo(1, STUTTER_RELEASE_SEC);
+    } catch {
+      /* graph may be mid-dispose */
+    }
+    stutterGateParam = null;
+  };
 
   // ── Tape Stop ─────────────────────────────────────────────────
-  let savedBpm = 120;
+  // null = no tape stop has happened; never trust a default tempo.
+  let savedBpm: number | null = null;
+  let tapeActive = false;
+  let tapeTimer: number | null = null;
 
-  const restoreDestVolume = (rampSec = 0.05) => {
-    const dest = Tone.getDestination();
-    dest.volume.cancelScheduledValues(Tone.now());
-    dest.volume.rampTo(0, rampSec);
+  const clearTapeTimer = () => {
+    if (tapeTimer !== null) {
+      window.clearTimeout(tapeTimer);
+      tapeTimer = null;
+    }
+  };
+
+  const restoreSavedBpm = (rampSec: number) => {
+    if (savedBpm === null) return;
+    const transport = Tone.getTransport();
+    transport.bpm.cancelScheduledValues(Tone.now());
+    transport.bpm.rampTo(savedBpm, Math.max(0.01, rampSec));
   };
 
   return {
@@ -88,22 +162,31 @@ export const createPerformanceFx = (): PerformanceFx => {
     },
 
     // ── Stutter Gate API ──────────────────────────────────────
-    startStutter(rate, depth) {
+    startStutter(rate, depth, gate) {
+      if (!gate) return false; // audio graph not ready — refuse silently
+      // One LFO at a time: a re-trigger (rate change / key mash) tears
+      // the previous one down first, so nodes can never accumulate.
       if (stutterLfo) {
         stutterLfo.stop();
+        stutterLfo.disconnect();
         stutterLfo.dispose();
+        stutterLfo = null;
       }
+      // If we were previously attached to a different gate, restore it.
+      if (stutterGateParam && stutterGateParam !== gate) releaseStutterGate();
+      stutterGateParam = gate;
       const hz = RATE_TO_HZ(rate, Tone.getTransport().bpm.value);
-      // depth 0..1 → min dB 0 (no gate) .. -60 (full gate)
-      const minDb = -60 * Math.max(0, Math.min(1, depth));
       stutterLfo = new Tone.LFO({
         type: 'square',
         frequency: hz,
-        min: minDb,
-        max: 0,
+        min: gateFloor(depth),
+        max: 1,
+        // phase 0 starts the square HIGH → the gate engages open (unity),
+        // so turning the effect on never clicks.
       });
-      stutterLfo.connect(Tone.getDestination().volume);
+      stutterLfo.connect(gate as unknown as Tone.Param<'gain'>);
       stutterLfo.start();
+      return true;
     },
     stopStutter() {
       if (stutterLfo) {
@@ -112,29 +195,40 @@ export const createPerformanceFx = (): PerformanceFx => {
         stutterLfo.dispose();
         stutterLfo = null;
       }
-      restoreDestVolume();
+      releaseStutterGate();
     },
     setStutterDepth(depth) {
       if (stutterLfo) {
-        const minDb = -60 * Math.max(0, Math.min(1, depth));
-        stutterLfo.min = minDb;
+        stutterLfo.min = gateFloor(depth);
       }
     },
 
     // ── Tape Stop API ─────────────────────────────────────────
     startTapeStop(seconds, onComplete) {
+      if (tapeActive) return false; // re-trigger guard (synchronous)
+      tapeActive = true;
       const transport = Tone.getTransport();
-      savedBpm = transport.bpm.value;
+      savedBpm = transport.bpm.value; // only the pre-stop tempo is saved
       transport.bpm.cancelScheduledValues(Tone.now());
       transport.bpm.rampTo(5, Math.max(0.05, seconds));
-      window.setTimeout(() => onComplete(), Math.max(50, seconds * 1000));
-      return savedBpm;
+      clearTapeTimer();
+      tapeTimer = window.setTimeout(() => {
+        tapeTimer = null;
+        onComplete();
+      }, Math.max(50, seconds * 1000));
+      return true;
     },
     resumeTapeStop(seconds) {
-      const transport = Tone.getTransport();
-      transport.bpm.cancelScheduledValues(Tone.now());
-      transport.bpm.rampTo(savedBpm, Math.max(0.05, seconds));
+      restoreSavedBpm(seconds);
+      tapeActive = false;
     },
+    finishTapeStop() {
+      // Transport is (expected to be) stopped here, so the restore ramp
+      // is inaudible — but the tempo is correct for the next Play.
+      restoreSavedBpm(0.01);
+      tapeActive = false;
+    },
+    isTapeStopActive: () => tapeActive,
 
     panic() {
       if (beatLoop) {
@@ -149,13 +243,13 @@ export const createPerformanceFx = (): PerformanceFx => {
         stutterLfo.dispose();
         stutterLfo = null;
       }
-      restoreDestVolume(0.03);
-      // Restore Transport BPM if mid-tape-stop
-      const transport = Tone.getTransport();
-      if (transport.bpm.value < savedBpm * 0.9) {
-        transport.bpm.cancelScheduledValues(Tone.now());
-        transport.bpm.rampTo(savedBpm, 0.05);
+      releaseStutterGate();
+      // Restore Transport BPM only when a tape stop is actually mid-flight.
+      clearTapeTimer();
+      if (tapeActive && savedBpm !== null) {
+        restoreSavedBpm(0.05);
       }
+      tapeActive = false;
     },
     dispose() {
       this.panic();

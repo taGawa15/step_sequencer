@@ -7,6 +7,8 @@ import type {
   TimelineState,
 } from '../types/timeline';
 import { TIMELINE_SLOT_IDS } from '../types/timeline';
+import { normalizeTimelineSlot } from '../utils/projectSnapshot';
+import { addError } from '../utils/errorLog';
 
 const emptyState = (): TimelineState => ({
   timelines: { '1': null, '2': null, '3': null, '4': null },
@@ -14,7 +16,14 @@ const emptyState = (): TimelineState => ({
   confirmLoadGuard: true,
 });
 
-const loadState = (): TimelineState => {
+interface LoadResult {
+  state: TimelineState;
+  /** Slots whose stored data existed but could not be repaired. */
+  invalidSlots: TimelineSlotId[];
+}
+
+const loadState = (): LoadResult => {
+  const invalidSlots: TimelineSlotId[] = [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY_TIMELINES);
     if (raw) {
@@ -23,8 +32,19 @@ const loadState = (): TimelineState => {
       if (parsed.timelines && typeof parsed.timelines === 'object') {
         for (const id of TIMELINE_SLOT_IDS) {
           const v = (parsed.timelines as Record<string, unknown>)[id];
-          if (v && typeof v === 'object') {
-            result.timelines[id] = v as TimelineSlot;
+          if (v === null || v === undefined) continue;
+          // Validate + normalize instead of blind-casting. Old schemas are
+          // repaired where possible; irreparable data is dropped so a LOAD
+          // can never push undefined into the live app state.
+          const slot = normalizeTimelineSlot(v);
+          if (slot) {
+            result.timelines[id] = slot;
+          } else {
+            invalidSlots.push(id);
+            addError({
+              type: 'manual',
+              message: `Timeline slot ${id} was dropped: stored data is an old or broken format`,
+            });
           }
         }
       }
@@ -37,12 +57,12 @@ const loadState = (): TimelineState => {
       if (typeof parsed.confirmLoadGuard === 'boolean') {
         result.confirmLoadGuard = parsed.confirmLoadGuard;
       }
-      return result;
+      return { state: result, invalidSlots };
     }
   } catch {
-    /* ignore */
+    /* fall through to empty */
   }
-  return emptyState();
+  return { state: emptyState(), invalidSlots };
 };
 
 interface Args {
@@ -53,7 +73,12 @@ interface Args {
 }
 
 export const useTimelineSlots = ({ getCurrentSnapshot, applySnapshot }: Args) => {
-  const [state, setState] = useState<TimelineState>(loadState);
+  const [initial] = useState(loadState);
+  const [state, setState] = useState<TimelineState>(initial.state);
+  /** Non-empty when stored slots had to be discarded at startup. */
+  const [invalidSlots, setInvalidSlots] = useState<TimelineSlotId[]>(
+    initial.invalidSlots,
+  );
 
   useEffect(() => {
     try {
@@ -69,25 +94,25 @@ export const useTimelineSlots = ({ getCurrentSnapshot, applySnapshot }: Args) =>
 
   const save = useCallback(
     (id?: TimelineSlotId) => {
-      setState((prev) => {
-        const slotId = id ?? prev.activeTimelineId;
-        const slot: TimelineSlot = {
-          name: prev.timelines[slotId]?.name ?? `Timeline ${slotId}`,
-          savedAt: new Date().toISOString(),
-          data: getCurrentSnapshot(),
-        };
-        return {
-          ...prev,
-          timelines: { ...prev.timelines, [slotId]: slot },
-          activeTimelineId: slotId,
-        };
-      });
+      const slotId = id ?? state.activeTimelineId;
+      const slot: TimelineSlot = {
+        name: state.timelines[slotId]?.name ?? `Timeline ${slotId}`,
+        savedAt: new Date().toISOString(),
+        data: getCurrentSnapshot(),
+      };
+      setState((prev) => ({
+        ...prev,
+        timelines: { ...prev.timelines, [slotId]: slot },
+        activeTimelineId: slotId,
+      }));
+      // Saving over a previously-invalid slot heals it.
+      setInvalidSlots((prev) => prev.filter((s) => s !== slotId));
     },
-    [getCurrentSnapshot],
+    [getCurrentSnapshot, state.activeTimelineId, state.timelines],
   );
 
   const load = useCallback(
-    (id?: TimelineSlotId) => {
+    (id?: TimelineSlotId): boolean => {
       const slotId = id ?? state.activeTimelineId;
       const slot = state.timelines[slotId];
       if (!slot) return false;
@@ -153,6 +178,7 @@ export const useTimelineSlots = ({ getCurrentSnapshot, applySnapshot }: Args) =>
     timelines: state.timelines,
     activeId: state.activeTimelineId,
     confirmLoadGuard: state.confirmLoadGuard,
+    invalidSlots,
     select,
     save,
     load,

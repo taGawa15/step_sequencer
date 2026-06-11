@@ -5,9 +5,11 @@ import type {
   DrumStep,
   DrumTrackId,
   MuteMap,
+  NoteDuration,
   Pattern,
   StepComponents,
   SynthStep,
+  SynthTrackId,
   TrackId,
 } from '../types';
 import {
@@ -15,6 +17,7 @@ import {
 } from '../audio/instruments';
 import { createAudioGraph, type AudioGraph } from '../audio/createAudioGraph';
 import type { SamplePlayer } from '../audio/samplePlayer';
+import { swingDelaySeconds } from '../utils/swing';
 
 /** Map of drum track id → sample player to fire instead of the built-in voice. */
 export type SampleAssignmentMap = Partial<Record<DrumTrackId, SamplePlayer>>;
@@ -34,9 +37,28 @@ export interface StepEvent {
   note: string | null;
 }
 
+/** Last hit actually fired per track — what Beat Repeat re-triggers. */
+export interface LastFiredDrum {
+  velocity: number;
+  /** AudioContext time of the hit. */
+  at: number;
+}
+export interface LastFiredSynth {
+  note: string;
+  duration: NoteDuration | number;
+  velocity: number;
+  at: number;
+}
+export interface LastFiredMap {
+  drums: Partial<Record<DrumTrackId, LastFiredDrum>>;
+  synths: Partial<Record<SynthTrackId, LastFiredSynth>>;
+}
+
 interface Args {
   pattern: Pattern;
   bpm: number;
+  /** Swing percent 0..75 — odd 16th steps are delayed (see utils/swing). */
+  swing: number;
   mutes: MuteMap;
   loopLength: LoopLengthType;
   /** Optional drum-track sample assignments — when present that track
@@ -80,6 +102,7 @@ const fireRepeats = ({ stepLen, baseAudioTime, repeat, onFire }: FireRepeatsArgs
 export const useSequencerEngine = ({
   pattern,
   bpm,
+  swing,
   mutes,
   loopLength,
   sampleAssignments,
@@ -94,8 +117,22 @@ export const useSequencerEngine = ({
   const sequenceRef = useRef<Tone.Sequence<number> | null>(null);
   const patternRef = useRef(pattern);
   const mutesRef = useRef(mutes);
+  const swingRef = useRef(swing);
   const sampleAssignRef = useRef<SampleAssignmentMap>(sampleAssignments ?? {});
   const onStepEventRef = useRef(onStepEvent);
+  /**
+   * Last step index the AUDIO scheduler fired (not the UI's draw-lagged
+   * currentStep). Beat Repeat reads this so retriggers match what's
+   * actually sounding.
+   */
+  const audioStepRef = useRef(-1);
+  /**
+   * Per-track record of the most recent hit that ACTUALLY fired (passed
+   * probability, unmuted). Beat Repeat re-triggers from here — repeating
+   * the current grid cell instead would be silent on sparse patterns,
+   * which read as "the FX does nothing".
+   */
+  const lastFiredRef = useRef<LastFiredMap>({ drums: {}, synths: {} });
 
   useEffect(() => {
     patternRef.current = pattern;
@@ -103,6 +140,9 @@ export const useSequencerEngine = ({
   useEffect(() => {
     mutesRef.current = mutes;
   }, [mutes]);
+  useEffect(() => {
+    swingRef.current = swing;
+  }, [swing]);
   useEffect(() => {
     sampleAssignRef.current = sampleAssignments ?? {};
   }, [sampleAssignments]);
@@ -131,6 +171,11 @@ export const useSequencerEngine = ({
         const m = mutesRef.current;
         const samples = sampleAssignRef.current;
         const stepLen = Tone.Time('16n').toSeconds();
+        // Swing: delay odd 16th steps. Applied to the step base time so
+        // micro-timing / repeats ride on top of the swung grid.
+        const stepTime =
+          time + swingDelaySeconds(stepIndex, stepLen, swingRef.current);
+        audioStepRef.current = stepIndex;
 
         for (const t of DRUM_TRACKS) {
           if (m[t.id]) continue;
@@ -140,7 +185,7 @@ export const useSequencerEngine = ({
 
           fireRepeats({
             stepLen,
-            baseAudioTime: time + step.components.microTiming / 1000,
+            baseAudioTime: stepTime + step.components.microTiming / 1000,
             repeat: step.components.repeat,
             onFire: (fireTime, repeatIndex) => {
               const sample = samples[t.id];
@@ -153,6 +198,10 @@ export const useSequencerEngine = ({
                   plocks: componentsToPlocks(step.components),
                 });
               }
+              lastFiredRef.current.drums[t.id] = {
+                velocity: step.velocity,
+                at: fireTime,
+              };
               onStepEventRef.current?.({
                 trackId: t.id,
                 stepIndex,
@@ -174,7 +223,7 @@ export const useSequencerEngine = ({
 
           fireRepeats({
             stepLen,
-            baseAudioTime: time + step.components.microTiming / 1000,
+            baseAudioTime: stepTime + step.components.microTiming / 1000,
             repeat: step.components.repeat,
             onFire: (fireTime, repeatIndex) => {
               audioGraph.voices.synths[t.id].trigger({
@@ -184,6 +233,12 @@ export const useSequencerEngine = ({
                 velocity: step.velocity,
                 plocks: componentsToPlocks(step.components),
               });
+              lastFiredRef.current.synths[t.id] = {
+                note: step.note,
+                duration: step.duration,
+                velocity: step.velocity,
+                at: fireTime,
+              };
               onStepEventRef.current?.({
                 trackId: t.id,
                 stepIndex,
@@ -197,7 +252,7 @@ export const useSequencerEngine = ({
           });
         }
 
-        Tone.getDraw().schedule(() => setCurrentStep(stepIndex), time);
+        Tone.getDraw().schedule(() => setCurrentStep(stepIndex), stepTime);
       },
       Array.from({ length: loopLength }, (_, i) => i),
       '16n',
@@ -252,6 +307,15 @@ export const useSequencerEngine = ({
     const transport = Tone.getTransport();
     transport.stop();
     transport.position = 0;
+    // Drop queued draw callbacks (scheduled up to a lookahead ahead) so a
+    // stale one can't re-light a step indicator after we reset to -1.
+    try {
+      Tone.getDraw().cancel(0);
+    } catch {
+      /* ignore */
+    }
+    audioStepRef.current = -1;
+    lastFiredRef.current = { drums: {}, synths: {} };
     setCurrentStep(-1);
     setIsPlaying(false);
   }, []);
@@ -261,11 +325,27 @@ export const useSequencerEngine = ({
     const transport = Tone.getTransport();
     transport.stop();
     transport.position = 0;
+    try {
+      Tone.getDraw().cancel(0);
+    } catch {
+      /* ignore */
+    }
+    audioStepRef.current = -1;
+    lastFiredRef.current = { drums: {}, synths: {} };
     setCurrentStep(-1);
     setIsPlaying(false);
     audioGraph?.voices.panicAll();
     audioGraph?.master.panic();
   }, [audioGraph]);
 
-  return { isPlaying, currentStep, play, stop, panic, audioGraph };
+  return {
+    isPlaying,
+    currentStep,
+    play,
+    stop,
+    panic,
+    audioGraph,
+    audioStepRef,
+    lastFiredRef,
+  };
 };

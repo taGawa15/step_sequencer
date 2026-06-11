@@ -1,0 +1,197 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  height: auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  background: var(--line-soft);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  touch-action: manipulation;
+}
+
+.btn:hover {
+  background: var(--line);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 4px 10px;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px dotted var(--line);
+  padding: 2px 0;
+  min-width: 0;
+}
+
+.statLabel {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.statValue {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.errorBox {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--bg);
+  padding: 6px 8px;
+}
+
+.errorTitle {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--fg-dim);
+  margin-bottom: 4px;
+}
+
+.errorLast {
+  letter-spacing: 0.04em;
+}
+
+.errorList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.errorEmpty {
+  font-size: 10px;
+  color: var(--fg-dim);
+  padding: 4px 0;
+}
+
+.errorItem {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.errorMeta {
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.errorMsg {
+  color: var(--fg);
+  word-break: break-word;
+}
+
+.note {
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+  margin: 0;
+}
+
+/* ── Performance FX status ─────────────────────────────────────── */
+
+.fxOk { color: var(--fg); }
+.fxBad { color: var(--accent); font-weight: 600; }
+
+.fxWarning {
+  font-size: 10px;
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: 2px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+}
+
+.fxList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.fxRow {
+  display: grid;
+  grid-template-columns: 10px minmax(90px, auto) 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.fxDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+.fxDotOn {
+  background: var(--accent);
+}
+
+.fxName {
+  letter-spacing: 0.08em;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.fxDetail {
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fxLast {
+  color: var(--fg-dim);
+  white-space: nowrap;
+}

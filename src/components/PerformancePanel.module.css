@@ -13,7 +13,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  height: 100%;
+  /* Grow with content; the parent column/tab-body scrolls when the
+     viewport is too short (phone landscape). height:100% would clip. */
+  height: auto;
+  min-height: 100%;
   box-sizing: border-box;
 }
 

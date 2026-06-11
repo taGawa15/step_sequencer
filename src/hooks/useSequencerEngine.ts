@@ -133,6 +133,14 @@ export const useSequencerEngine = ({
    * which read as "the FX does nothing".
    */
   const lastFiredRef = useRef<LastFiredMap>({ drums: {}, synths: {} });
+  /**
+   * While true (Beat Repeat engaged) the sequencer keeps running — step
+   * position, draw callbacks, lastFired bookkeeping — but does NOT fire
+   * voices. The repeat replaces the stream instead of stacking on top of
+   * it: at 1/32 the old overlap put repeat ticks ~1 ms from sequencer
+   * hits on the same mono voices, and the envelope cancels chewed both.
+   */
+  const suppressTriggersRef = useRef(false);
 
   useEffect(() => {
     patternRef.current = pattern;
@@ -189,6 +197,13 @@ export const useSequencerEngine = ({
         const stepTime =
           time + swingDelaySeconds(stepIndex, stepLen, swingRef.current);
         audioStepRef.current = stepIndex;
+
+        // Beat Repeat engaged → the repeat owns the audio. Keep the
+        // playhead drawing so release re-enters seamlessly on the grid.
+        if (suppressTriggersRef.current) {
+          Tone.getDraw().schedule(() => setCurrentStep(stepIndex), stepTime);
+          return;
+        }
 
         for (const t of DRUM_TRACKS) {
           if (m[t.id]) continue;
@@ -360,5 +375,6 @@ export const useSequencerEngine = ({
     audioGraph,
     audioStepRef,
     lastFiredRef,
+    suppressTriggersRef,
   };
 };

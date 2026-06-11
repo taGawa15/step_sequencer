@@ -341,6 +341,150 @@ test.describe('audio output — master chain integrity', () => {
   });
 });
 
+test.describe('sampling pipeline — restore → assign → audible', () => {
+  test('a stored sample survives reload, replaces the kick voice, and GAIN works', async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto('/');
+    // Inject a 2 kHz sine WAV straight into the app's IndexedDB +
+    // metadata store — the exact restore path a real recording uses.
+    await page.evaluate(async () => {
+      const sr = 44100;
+      const n = Math.floor(sr * 0.6);
+      const buf = new ArrayBuffer(44 + n * 2);
+      const v = new DataView(buf);
+      const ws = (o: number, s: string) => {
+        for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
+      };
+      ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE');
+      ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+      v.setUint16(22, 1, true); v.setUint32(24, sr, true);
+      v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+      ws(36, 'data'); v.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) {
+        const env = Math.min(1, i / 200) * Math.min(1, (n - i) / 400);
+        v.setInt16(44 + i * 2, Math.sin((2 * Math.PI * 2000 * i) / sr) * 0.5 * env * 32767, true);
+      }
+      const blob = new Blob([buf], { type: 'audio/wav' });
+      await new Promise<void>((res, rej) => {
+        const req = indexedDB.open('step-sequencer-samples', 1);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains('samples')) req.result.createObjectStore('samples');
+        };
+        req.onsuccess = () => {
+          const tx = req.result.transaction('samples', 'readwrite');
+          tx.objectStore('samples').put(blob, 's-e2e-1');
+          tx.oncomplete = () => { req.result.close(); res(); };
+          tx.onerror = () => rej(tx.error);
+        };
+        req.onerror = () => rej(req.error);
+      });
+      window.localStorage.setItem(
+        'step-sequencer:samples:v1',
+        JSON.stringify({ samples: [{
+          id: 's-e2e-1', name: 'E2ESine', createdAt: new Date().toISOString(),
+          durationSec: 0.6, assignedTo: null, gain: 0.8, pitch: 0,
+          trimStart: 0, trimEnd: null,
+        }]}),
+      );
+    });
+    await page.reload();
+
+    // Restore: the row is back (the old persist-wipe bug deleted it here)
+    await openTab(page, /SAMPLE|SMPL/);
+    const nameInput = page.locator('[aria-label="mic sampling panel"] input').first();
+    await expect(nameInput).toHaveValue('E2ESine', { timeout: 5000 });
+
+    // Assign to KICK
+    await page
+      .locator('[aria-label="assign to track"]')
+      .first()
+      .selectOption('kick');
+
+    // Activate kick step 1 and play
+    await page.locator('[aria-label="step 1"]').first().click();
+    await page.getByTestId('transport-toggle').click();
+    await page.waitForTimeout(400);
+
+    // The kick lane must now play the 2 kHz SINE, not the C1 drum thump —
+    // discriminate by dominant FFT frequency at masterOut.
+    const dominantHz = await page.evaluate(async () => {
+      interface Dbg {
+        graph: { master: { masterOut: { connect: (n: unknown) => void } } };
+        Tone: {
+          start: () => Promise<void>;
+          Analyser: new (type: string, size: number) => {
+            getValue: () => Float32Array;
+            dispose: () => void;
+          };
+          getContext: () => { sampleRate: number };
+        };
+      }
+      const dbg = (window as unknown as { __seqDebug?: Dbg }).__seqDebug;
+      if (!dbg) return -1;
+      const { graph, Tone } = dbg;
+      await Tone.start();
+      const fftSize = 1024;
+      const an = new Tone.Analyser('fft', fftSize);
+      graph.master.masterOut.connect(an);
+      const sr = Tone.getContext().sampleRate;
+      let bestBin = 0;
+      let bestDb = -Infinity;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 2000) {
+        await new Promise((r) => setTimeout(r, 40));
+        const bins = an.getValue();
+        for (let i = 2; i < bins.length; i++) {
+          if (bins[i] > bestDb) { bestDb = bins[i]; bestBin = i; }
+        }
+      }
+      an.dispose();
+      return (bestBin * sr) / (fftSize * 2);
+    });
+    expect(dominantHz).toBeGreaterThan(1500);
+    expect(dominantHz).toBeLessThan(2600);
+
+    // GAIN slider to 0 → sequenced hits go near-silent (gain respected,
+    // not overwritten by velocity — the old slider-does-nothing bug)
+    await openTab(page, /SAMPLE|SMPL/);
+    await page.evaluate(() => {
+      const panel = document.querySelector('[aria-label="mic sampling panel"]');
+      const gain = panel?.querySelector('input[type="range"]') as HTMLInputElement | null;
+      if (!gain) return;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(gain, '0');
+      gain.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // Let any hit scheduled BEFORE the gain change (scheduler lookahead)
+    // play out, then listen across a full 2 s loop.
+    await page.waitForTimeout(700);
+    const silentDb = await page.evaluate(async () => {
+      interface Dbg {
+        graph: { master: { masterOut: { connect: (n: unknown) => void } } };
+        Tone: { Meter: new (o: { smoothing: number }) => { getValue: () => number | number[]; dispose: () => void } };
+      }
+      const dbg = (window as unknown as { __seqDebug?: Dbg }).__seqDebug;
+      if (!dbg) return 0;
+      const meter = new dbg.Tone.Meter({ smoothing: 0 });
+      dbg.graph.master.masterOut.connect(meter);
+      let max = -Infinity;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 2400) {
+        await new Promise((r) => setTimeout(r, 30));
+        const v = meter.getValue();
+        const db = Array.isArray(v) ? v[0] : v;
+        if (db > max) max = db;
+      }
+      meter.dispose();
+      return max;
+    });
+    expect(silentDb).toBeLessThan(-45);
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe('audio safety — stutter & delay', () => {
   test('H-key stutter spam (20 toggles) never errors or kills the app', async ({
     page,

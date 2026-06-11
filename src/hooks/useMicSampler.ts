@@ -37,6 +37,14 @@ export const useMicSampler = () => {
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const stopTimerRef = useRef<number | null>(null);
+  /**
+   * True once the async restore has finished. The persist effect MUST
+   * NOT write before then: it used to fire immediately with the initial
+   * empty array, overwriting the stored metadata — and under StrictMode
+   * the second mount then re-read the already-erased store, so every
+   * reload silently wiped all samples ("録音以外動かない" bug #2).
+   */
+  const hydratedRef = useRef(false);
 
   // ── Initial load: meta from localStorage, blobs from IndexedDB ────
   useEffect(() => {
@@ -54,15 +62,24 @@ export const useMicSampler = () => {
           /* skip broken entry */
         }
       }
-      if (!cancelled) setSamples(restored);
+      if (!cancelled) {
+        // Merge, don't replace: a recording finished during hydration
+        // must survive the restore landing after it.
+        setSamples((prev) => [
+          ...restored,
+          ...prev.filter((p) => !restored.some((r) => r.id === p.id)),
+        ]);
+        hydratedRef.current = true;
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Persist metadata only (blobs live in IndexedDB)
+  // Persist metadata only (blobs live in IndexedDB) — after hydration.
   useEffect(() => {
+    if (!hydratedRef.current) return;
     try {
       const meta = samples.map((s) => {
         const { url: _u, ...rest } = s;

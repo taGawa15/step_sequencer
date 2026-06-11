@@ -11,6 +11,8 @@ vi.mock('../storage/sampleDb', () => ({
 }));
 
 import { useMicSampler } from './useMicSampler';
+import { sampleDb } from '../storage/sampleDb';
+import { STORAGE_KEY_SAMPLES } from '../constants';
 
 class FakeMediaRecorder {
   static instances: FakeMediaRecorder[] = [];
@@ -86,6 +88,55 @@ describe('useMicSampler — auto-stop state sync', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(result.current.recording).toBe(true);
+  });
+
+  it('restores saved samples on mount — the initial persist must NOT wipe the store first', async () => {
+    // Regression: the persist effect used to run immediately with the
+    // initial [] and erase the metadata; under StrictMode the remount
+    // then re-read the erased store → all samples gone on every reload.
+    localStorage.setItem(
+      STORAGE_KEY_SAMPLES,
+      JSON.stringify({
+        samples: [
+          {
+            id: 's-keep-1',
+            name: 'Kept',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            durationSec: 0.5,
+            assignedTo: 'kick',
+            gain: 0.6,
+            pitch: 2,
+            trimStart: 0.1,
+            trimEnd: 0.4,
+          },
+        ],
+      }),
+    );
+    vi.mocked(sampleDb.get).mockResolvedValue(new Blob(['x']));
+
+    const { result, unmount } = renderHook(() => useMicSampler());
+    // The store must not be clobbered by the initial empty state…
+    const early = JSON.parse(localStorage.getItem(STORAGE_KEY_SAMPLES) ?? '{}');
+    expect(early.samples).toHaveLength(1);
+    // …and the async restore lands in state with fields intact.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.samples).toHaveLength(1);
+    expect(result.current.samples[0]).toMatchObject({
+      id: 's-keep-1',
+      assignedTo: 'kick',
+      gain: 0.6,
+      pitch: 2,
+      trimStart: 0.1,
+      trimEnd: 0.4,
+    });
+    expect(result.current.samples[0].url).toContain('blob:');
+    // Persisted store still holds the sample after restore round-trips.
+    const after = JSON.parse(localStorage.getItem(STORAGE_KEY_SAMPLES) ?? '{}');
+    expect(after.samples).toHaveLength(1);
+    unmount();
+    vi.mocked(sampleDb.get).mockResolvedValue(null);
   });
 
   it('manual stop clears the auto-stop timer (no late double-stop)', async () => {

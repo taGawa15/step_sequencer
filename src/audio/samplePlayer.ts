@@ -46,6 +46,10 @@ export const createSamplePlayerFromUrl = async (
   let pitchSemis = 0;
   let trimStart = 0;
   let trimEnd: number | null = null;
+  // User gain is COMBINED with per-hit velocity at trigger time. Writing
+  // velocity alone into player.volume overwrote the GAIN slider on every
+  // sequenced hit — the slider looked dead during playback.
+  let userGain = 0.8;
 
   const apply = () => {
     player.playbackRate = Math.pow(2, pitchSemis / 12);
@@ -59,7 +63,9 @@ export const createSamplePlayerFromUrl = async (
     trigger: (time, velocity = 1) => {
       if (!player.loaded) return;
       try {
-        player.volume.value = Tone.gainToDb(Math.max(0.0001, velocity));
+        player.volume.value = Tone.gainToDb(
+          Math.max(0.0001, userGain * velocity),
+        );
         const bufferDur = player.buffer.duration;
         const offset = Math.min(Math.max(0, trimStart), Math.max(0, bufferDur - MIN_TRIM_LENGTH));
         const end = trimEnd === null ? bufferDur : Math.min(trimEnd, bufferDur);
@@ -74,7 +80,8 @@ export const createSamplePlayerFromUrl = async (
       }
     },
     setGain: (gain) => {
-      player.volume.value = Tone.gainToDb(Math.max(0.0001, gain));
+      userGain = Number.isFinite(gain) ? Math.min(1, Math.max(0, gain)) : 0.8;
+      player.volume.value = Tone.gainToDb(Math.max(0.0001, userGain));
     },
     setPitch: (semis) => {
       pitchSemis = semis;

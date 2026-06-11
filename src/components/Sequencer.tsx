@@ -40,6 +40,11 @@ import {
   type SamplePlayer,
 } from '../audio/samplePlayer';
 import { SWING_DEFAULT, clampSwing } from '../utils/swing';
+import {
+  EMPTY_BEAT_SNAPSHOT,
+  captureRecentHits,
+  type BeatRepeatSnapshot,
+} from '../utils/beatRepeat';
 import { DebugPanel } from './DebugPanel';
 import type { ProjectSnapshot, TimelineSlotId } from '../types/timeline';
 import { AppShell } from './AppShell';
@@ -56,7 +61,7 @@ import { KeyboardHelpModal } from './KeyboardHelpModal';
 import { CopyPasteControls } from './CopyPasteControls';
 import { PerformanceFxPanel } from './PerformanceFxPanel';
 import { BottomEditPanel, type BottomTab } from './BottomEditPanel';
-import { LOOP_LENGTHS, DRUM_TRACKS, SYNTH_TRACKS } from '../constants';
+import { LOOP_LENGTHS } from '../constants';
 import { NEUTRAL_PLOCKS } from '../audio/instruments';
 import * as Tone from 'tone';
 
@@ -116,6 +121,7 @@ export const Sequencer = () => {
     panic,
     audioGraph,
     lastFiredRef,
+    suppressTriggersRef,
   } = useSequencerEngine({
     pattern,
     bpm,
@@ -339,33 +345,44 @@ export const Sequencer = () => {
   );
 
   // ── Performance FX (Beat Repeat / Stutter / Tape / Throw / Freeze / Crush)
-  // Beat Repeat re-fires each track's LAST ACTUALLY-FIRED hit (engine's
-  // lastFiredRef), windowed to the last two beats. Repeating the current
-  // grid cell instead is silent on sparse patterns — the old "FX does
-  // nothing" complaint. `time` is the Tone.Loop's precise scheduled time
-  // so retriggers stay on the grid; +1ms keeps the retrigger's envelope
-  // cancel from eating a sequencer note scheduled at exactly that time.
+  // Beat Repeat is REPLACE-style: on engage it snapshots each track's
+  // last audible hit (2-beat window) and suppresses the sequencer's own
+  // triggers; every Loop tick then re-fires the snapshot exclusively.
+  // Stacking repeat over the live stream collided ~1 ms apart on the
+  // same mono voices at high rates (the 1/32 long-press zipper bug).
+  // `time` is the Tone.Loop's precise scheduled time — on the grid.
+  const beatSnapshotRef = useRef<BeatRepeatSnapshot>(EMPTY_BEAT_SNAPSHOT);
+
+  const handleBeatRepeatEngage = useCallback(() => {
+    beatSnapshotRef.current = captureRecentHits(
+      lastFiredRef.current,
+      Tone.now(),
+      Tone.Time('2n').toSeconds(), // hits from the last 2 beats
+    );
+    suppressTriggersRef.current = true;
+  }, [lastFiredRef, suppressTriggersRef]);
+
+  const handleBeatRepeatRelease = useCallback(() => {
+    suppressTriggersRef.current = false;
+    beatSnapshotRef.current = EMPTY_BEAT_SNAPSHOT;
+  }, [suppressTriggersRef]);
+
   const onBeatRepeatTick = useCallback(
     (time: number) => {
       if (!audioGraph) return;
       const fireTime = time + 0.001;
-      const windowSec = Tone.Time('2n').toSeconds(); // last 2 beats
-      const fired = lastFiredRef.current;
-      for (const t of DRUM_TRACKS) {
-        if (mutes[t.id]) continue;
-        const hit = fired.drums[t.id];
-        if (!hit || time - hit.at > windowSec) continue;
-        audioGraph.voices.drums[t.id].trigger({
+      const slice = beatSnapshotRef.current;
+      for (const hit of slice.drums) {
+        if (mutes[hit.trackId]) continue;
+        audioGraph.voices.drums[hit.trackId].trigger({
           time: fireTime,
           velocity: hit.velocity,
           plocks: NEUTRAL_PLOCKS,
         });
       }
-      for (const t of SYNTH_TRACKS) {
-        if (mutes[t.id]) continue;
-        const hit = fired.synths[t.id];
-        if (!hit || time - hit.at > windowSec) continue;
-        audioGraph.voices.synths[t.id].trigger({
+      for (const hit of slice.synths) {
+        if (mutes[hit.trackId]) continue;
+        audioGraph.voices.synths[hit.trackId].trigger({
           note: hit.note,
           duration: hit.duration,
           time: fireTime,
@@ -374,7 +391,7 @@ export const Sequencer = () => {
         });
       }
     },
-    [audioGraph, lastFiredRef, mutes],
+    [audioGraph, mutes],
   );
 
   // Tape Stop "release" completion stops the transport (then the FX layer
@@ -382,6 +399,8 @@ export const Sequencer = () => {
   const perfFx = usePerformanceFx({
     audioGraph,
     onBeatRepeatTick,
+    onBeatRepeatEngage: handleBeatRepeatEngage,
+    onBeatRepeatRelease: handleBeatRepeatRelease,
     onTapeRelease: stop,
   });
 

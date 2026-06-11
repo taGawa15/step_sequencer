@@ -93,9 +93,17 @@ interface Args {
   audioGraph: AudioGraph | null;
   /**
    * Called by Beat Repeat on each tick with the Loop's precise scheduled
-   * time. The consumer should re-fire recent step content AT that time.
+   * time. The consumer should re-fire the captured slice AT that time.
    */
   onBeatRepeatTick: (time: number) => void;
+  /**
+   * Engage/release hooks around Beat Repeat. The consumer captures the
+   * repeat slice on engage and suppresses the sequencer's own triggers
+   * until release, so the repeat REPLACES the stream (stacking both
+   * collided on the same mono voices at high rates — the 1/32 bug).
+   */
+  onBeatRepeatEngage?: () => void;
+  onBeatRepeatRelease?: () => void;
   /**
    * Called when a release-mode tape stop completes — the consumer should
    * stop the transport here. BPM is restored silently right after.
@@ -106,6 +114,8 @@ interface Args {
 export const usePerformanceFx = ({
   audioGraph,
   onBeatRepeatTick,
+  onBeatRepeatEngage,
+  onBeatRepeatRelease,
   onTapeRelease,
 }: Args) => {
   const [state, setState] = useState<PerformanceFxState>(load);
@@ -133,6 +143,14 @@ export const usePerformanceFx = ({
   useEffect(() => {
     onTapeReleaseRef.current = onTapeRelease;
   }, [onTapeRelease]);
+  const onBeatEngageRef = useRef(onBeatRepeatEngage);
+  useEffect(() => {
+    onBeatEngageRef.current = onBeatRepeatEngage;
+  }, [onBeatRepeatEngage]);
+  const onBeatReleaseRef = useRef(onBeatRepeatRelease);
+  useEffect(() => {
+    onBeatReleaseRef.current = onBeatRepeatRelease;
+  }, [onBeatRepeatRelease]);
 
   const mark = useCallback((key: keyof FxLastTrigger) => {
     setLastTrigger((p) => ({ ...p, [key]: Date.now() }));
@@ -217,6 +235,9 @@ export const usePerformanceFx = ({
   // ── Beat Repeat ────────────────────────────────────────────────
   const startBeatRepeat = useCallback(() => {
     if (!fxRef.current) return;
+    // Capture the slice + mute the sequencer's own stream first, so the
+    // very first loop tick already plays the snapshot exclusively.
+    onBeatEngageRef.current?.();
     fxRef.current.startBeatRepeat(state.beatRepeatRate, (time) =>
       onTickRef.current(time),
     );
@@ -225,6 +246,7 @@ export const usePerformanceFx = ({
   }, [state.beatRepeatRate, mark]);
   const stopBeatRepeat = useCallback(() => {
     fxRef.current?.stopBeatRepeat();
+    onBeatReleaseRef.current?.();
     setBeatActive(false);
   }, []);
   const toggleBeatRepeat = useCallback(() => {
@@ -332,6 +354,7 @@ export const usePerformanceFx = ({
 
   const panic = useCallback(() => {
     fxRef.current?.panic();
+    onBeatReleaseRef.current?.(); // un-suppress the sequencer stream
     const g = graphRef.current;
     if (g) {
       g.master.setDelayThrow(false);

@@ -26,7 +26,10 @@ import {
   type SampleAssignmentMap,
 } from '../hooks/useSequencerEngine';
 import { usePerformanceControls } from '../hooks/usePerformanceControls';
-import { useViewport } from '../hooks/useViewport';
+import { useLayoutMode } from '../hooks/useLayoutMode';
+import { useMobileUI } from '../hooks/useMobileUI';
+import { isMobileLike } from '../utils/mobileLayout';
+import { MobileShell } from './mobile/MobileShell';
 import { useLoopLength } from '../hooks/useLoopLength';
 import { useTimelineSlots } from '../hooks/useTimelineSlots';
 import { useMicSampler } from '../hooks/useMicSampler';
@@ -85,7 +88,11 @@ export const Sequencer = () => {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const viewport = useViewport();
+  const layoutMode = useLayoutMode();
+  const mobile = isMobileLike(layoutMode);
+  /** Shell viewport for the desktop/tablet AppShell branch only. */
+  const viewport = layoutMode === 'desktop' ? 'desktop' : 'tablet';
+  const mobileUI = useMobileUI();
   const loop = useLoopLength();
   const sampler = useMicSampler();
   const noteUI = useNoteEditor();
@@ -223,6 +230,22 @@ export const Sequencer = () => {
       setSynthActive(trackId, idx, true);
     },
     [setSynthActive],
+  );
+
+  // Mobile: tapping a synth step that is ALREADY selected+active opens
+  // the Note Editor sheet (tap-again-to-edit) — first tap selects/arms
+  // like everywhere else, so step entry stays one-tap.
+  const handleSynthClickMobile = useCallback(
+    (trackId: SynthTrackId, idx: number) => {
+      const again =
+        selection?.kind === 'synth' &&
+        selection.trackId === trackId &&
+        selection.stepIndex === idx &&
+        pattern.synths[trackId][idx].active;
+      handleSynthClick(trackId, idx);
+      if (again) mobileUI.openSheet('note');
+    },
+    [selection, pattern.synths, handleSynthClick, mobileUI],
   );
 
   const handleUpdateDrumStep = useCallback(
@@ -510,8 +533,12 @@ export const Sequencer = () => {
   );
 
   // Suspend every global shortcut while the Help modal is open — the
-  // modal owns Esc, so closing Help can never fire PANIC (M5).
-  useKeyboardShortcuts(handlers, { suspended: helpOpen });
+  // modal owns Esc, so closing Help can never fire PANIC (M5). On mobile
+  // the drawer/sheet own Esc the same way.
+  useKeyboardShortcuts(handlers, {
+    suspended:
+      helpOpen || (mobile && (mobileUI.drawerOpen || mobileUI.sheetTab !== null)),
+  });
 
   // ── Slot content for AppShell ─────────────────────────────────────
   const transport = (
@@ -550,7 +577,7 @@ export const Sequencer = () => {
       onSetCompressor={performance.setCompressor}
       onPanic={panicAll}
     >
-      {viewport !== 'mobile' && (
+      {!mobile && (
         <SnapshotControls
           snapshots={performance.snapshots}
           morphTime={performance.morphTime}
@@ -782,12 +809,86 @@ export const Sequencer = () => {
 
   const noteTabEnabled = resolved?.kind === 'synth';
 
+  // ── Mobile shell (portrait + landscape performance mode) ──────────
+  // A redesign, not a shrink: one track group at a time, grid first,
+  // drawer + bottom sheets instead of permanent side/bottom panels.
+  if (mobile) {
+    return (
+      <>
+        <MobileShell
+          mode={layoutMode === 'mobileLandscape' ? 'mobileLandscape' : 'mobile'}
+          ui={mobileUI}
+          isPlaying={isPlaying}
+          bpm={bpm}
+          swing={swing}
+          masterVolume={performance.state.masterVolume}
+          onPlay={() => void play()}
+          onStop={stop}
+          onBpmChange={setBpm}
+          onSwingChange={(v) => setSwing(clampSwing(v))}
+          onMasterVolumeChange={performance.setMasterVolume}
+          onPanic={panicAll}
+          pattern={pattern}
+          mutes={mutes}
+          currentStep={currentStep}
+          selection={selection}
+          stepPage={loop.stepPage}
+          loopLength={loop.loopLength}
+          onDrumClick={handleDrumClick}
+          onSynthClick={handleSynthClickMobile}
+          onToggleMute={handleToggleMute}
+          onSetStepPage={loop.setStepPage}
+          onSetLoopLength={(l: LoopLengthType) => loop.setLoopLength(l)}
+          timelines={timeline.timelines}
+          activeMemoryId={timeline.activeId}
+          onMemoryLoad={(id) => timeline.load(id)}
+          onMemorySave={(id) => timeline.save(id)}
+          fx={{
+            beatActive: perfFx.beatActive,
+            stutterActive: perfFx.stutterActive,
+            tapeActive: perfFx.tapeActive,
+            throwActive: perfFx.throwActive,
+            freezeActive: perfFx.freezeActive,
+            toggleBeatRepeat: perfFx.toggleBeatRepeat,
+            toggleStutter: perfFx.toggleStutter,
+            triggerTapeStop: perfFx.triggerTapeStop,
+            toggleThrow: perfFx.toggleThrow,
+            toggleFreeze: perfFx.toggleFreeze,
+          }}
+          tabContent={tabContent}
+          onClearPattern={clearPattern}
+        />
+        {sampler.recording && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 'env(safe-area-inset-top, 0px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'var(--accent)',
+              color: 'var(--bg)',
+              padding: '6px 18px',
+              fontSize: 11,
+              letterSpacing: '0.32em',
+              zIndex: 70,
+              borderBottomLeftRadius: 4,
+              borderBottomRightRadius: 4,
+              pointerEvents: 'none',
+            }}
+          >
+            ● REC
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <AppShell
         transport={transport}
         leftCol={viewport === 'desktop' ? mixerPanel : undefined}
-        rightCol={viewport !== 'mobile' ? performanceContent : undefined}
+        rightCol={performanceContent}
         centerCol={
           <>
             <LoopControls
@@ -833,7 +934,7 @@ export const Sequencer = () => {
             padding: '6px 18px',
             fontSize: 11,
             letterSpacing: '0.32em',
-            zIndex: 50,
+            zIndex: 70,
             borderBottomLeftRadius: 4,
             borderBottomRightRadius: 4,
             pointerEvents: 'none',

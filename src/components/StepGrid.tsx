@@ -25,6 +25,13 @@ interface Props {
   /** 0-based page index — which 16-step slice to render. */
   stepPage: number;
   loopLength: LoopLengthType;
+  /**
+   * Which rows to render. Mobile shows one group at a time so each cell
+   * gets a real tap target instead of 8 rows of 16 px dots.
+   */
+  trackFilter?: 'all' | 'drum' | 'bass' | 'lead';
+  /** Mobile sizing: tall touch cells, tighter labels. */
+  mobile?: boolean;
   onDrumClick: (trackId: DrumTrackId, idx: number) => void;
   onSynthClick: (trackId: SynthTrackId, idx: number) => void;
   onToggleMute: (id: DrumTrackId | SynthTrackId) => void;
@@ -37,6 +44,8 @@ const StepGridImpl = ({
   selection,
   stepPage,
   loopLength,
+  trackFilter = 'all',
+  mobile = false,
   onDrumClick,
   onSynthClick,
   onToggleMute,
@@ -47,10 +56,16 @@ const StepGridImpl = ({
   // Steps past the current loop length are inert (rendered "outOfLoop")
   // so users can see where the loop ends.
 
+  const drumTracks = trackFilter === 'all' || trackFilter === 'drum' ? DRUM_TRACKS : [];
+  const synthTracks = SYNTH_TRACKS.filter((t) =>
+    trackFilter === 'all' ? true : trackFilter === t.id,
+  );
+  const synthAlone = drumTracks.length === 0 && synthTracks.length > 0;
+
   return (
-    <div className={styles.gridScroller}>
-      <div className={styles.gridContent}>
-        {DRUM_TRACKS.map((track) => {
+    <div className={`${styles.gridScroller} ${mobile ? styles.mobileScroller : ''}`}>
+      <div className={`${styles.gridContent} ${mobile ? styles.mobileContent : ''}`}>
+        {drumTracks.map((track) => {
           const muted = mutes[track.id];
           const highlighted =
             selection?.kind === 'drum' && selection.trackId === track.id;
@@ -60,6 +75,7 @@ const StepGridImpl = ({
               key={track.id}
               className={[
                 styles.row,
+                mobile ? styles.mobileRow : '',
                 muted ? styles.muted : '',
                 highlighted ? styles.highlighted : '',
               ]
@@ -79,7 +95,7 @@ const StepGridImpl = ({
                   M
                 </button>
               </div>
-              <div className={styles.steps}>
+              <div className={`${styles.steps} ${mobile ? styles.mobileSteps : ''}`}>
                 {slice.map((step, i) => {
                   const globalIdx = start + i;
                   const inLoop = globalIdx < loopLength;
@@ -106,9 +122,11 @@ const StepGridImpl = ({
           );
         })}
 
-        <div className={styles.divider} aria-hidden />
+        {drumTracks.length > 0 && synthTracks.length > 0 && (
+          <div className={styles.divider} aria-hidden />
+        )}
 
-        {SYNTH_TRACKS.map((track) => {
+        {synthTracks.map((track) => {
           const muted = mutes[track.id];
           const highlighted =
             selection?.kind === 'synth' && selection.trackId === track.id;
@@ -118,6 +136,7 @@ const StepGridImpl = ({
               key={track.id}
               className={[
                 styles.row,
+                mobile ? styles.mobileRow : '',
                 muted ? styles.muted : '',
                 highlighted ? styles.highlighted : '',
               ]
@@ -137,7 +156,15 @@ const StepGridImpl = ({
                   M
                 </button>
               </div>
-              <div className={styles.steps}>
+              <div
+                className={[
+                  styles.steps,
+                  mobile ? styles.mobileSteps : '',
+                  mobile && synthAlone ? styles.mobileStepsTall : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
                 {slice.map((step, i) => {
                   const globalIdx = start + i;
                   const inLoop = globalIdx < loopLength;

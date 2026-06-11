@@ -1,0 +1,753 @@
+/* ════════════════════════════════════════════════════════════════════
+   Mobile shell — a REDESIGN, not a shrink of the 3-column desktop.
+   Portrait:  transport → minimap → GRID (flex:1) → track tabs → quick bar
+   Landscape: left rail | GRID | right Quick-FX rail  (performance mode)
+   Page never scrolls; drawer/sheet interiors are the only scroll areas.
+   ════════════════════════════════════════════════════════════════════ */
+
+.shell {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding-top: max(6px, env(safe-area-inset-top, 0px));
+  padding-right: max(8px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(8px, env(safe-area-inset-left, 0px));
+}
+
+.shellLandscape {
+  flex-direction: row;
+  gap: 8px;
+}
+
+/* ── Compact transport (portrait top) ───────────────────────────── */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px 6px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.play {
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  min-width: 92px;
+  min-height: 46px;
+  border: 1px solid var(--fg);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.playOn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.bpmWrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.bpmLabel {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--fg-dim);
+}
+
+.bpmInput {
+  width: 62px;
+  font: inherit;
+  font-size: 24px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  color: var(--fg);
+  padding: 2px 0;
+  -moz-appearance: textfield;
+}
+
+.bpmInput::-webkit-outer-spin-button,
+.bpmInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+.statusDot[data-ok='true'] {
+  background: #2faa5e;
+}
+
+.statusDot[data-ok='false'] {
+  background: var(--accent);
+}
+
+.panic {
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* second transport row: swing + master sliders */
+.transportRow2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 2px 6px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.miniSlider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.miniSliderLabel {
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: var(--fg-dim);
+  width: 34px;
+  flex-shrink: 0;
+}
+
+.miniSlider input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  accent-color: var(--accent);
+  touch-action: manipulation;
+}
+
+.miniSliderValue {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Mini map (page indicator + pager) ──────────────────────────── */
+
+.miniMap {
+  display: flex;
+  gap: 4px;
+  padding: 6px 2px;
+  flex-shrink: 0;
+}
+
+.miniMapSeg {
+  flex: 1;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--fg-dim);
+  touch-action: manipulation;
+}
+
+.miniMapSegActive {
+  border-color: var(--fg);
+  color: var(--fg);
+  background: var(--line-soft);
+}
+
+.miniMapSegPlaying::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ── Grid area ──────────────────────────────────────────────────── */
+
+.gridArea {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Track group tabs ───────────────────────────────────────────── */
+
+.trackTabs {
+  display: flex;
+  gap: 6px;
+  padding: 6px 0;
+  flex-shrink: 0;
+}
+
+.trackTab {
+  flex: 1;
+  min-height: 46px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--fg-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.trackTabOn {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+}
+
+/* ── Quick bar (LOOP / MEMORY / FOCUS) ──────────────────────────── */
+
+.quickBar {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 2px 0 4px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.loopBtn {
+  min-width: 72px;
+  min-height: 46px;
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.loopPopover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 8px;
+  z-index: 30;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+.loopChip {
+  min-height: 44px;
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.loopChipOn {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+}
+
+/* Landscape: popover anchors to the narrow left rail — let it spill
+   rightward over the grid instead of squeezing into 104px. */
+.shellLandscape .loopPopover {
+  left: 0;
+  right: auto;
+  bottom: auto;
+  top: 0;
+  width: 300px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.memGroup {
+  flex: 1;
+  display: flex;
+  gap: 5px;
+}
+
+.memSlot {
+  flex: 1;
+  min-height: 46px;
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.memSlotFull {
+  border-color: var(--line-strong);
+  color: var(--fg);
+}
+
+.memSlotActive {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.memArm {
+  min-width: 52px;
+  min-height: 46px;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--fg-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.memArmOn {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.focusBtn {
+  min-width: 52px;
+  min-height: 46px;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--fg-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* Focus-mode exit pill (everything else is hidden) */
+.focusExit {
+  position: absolute;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  min-height: 44px;
+  padding: 0 22px;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: var(--bg);
+  border-radius: 22px;
+  z-index: 25;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ── Menu FAB ───────────────────────────────────────────────────── */
+
+.fab {
+  position: absolute;
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  /* clear of track tabs + quick bar */
+  bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 20px;
+  z-index: 40;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+  touch-action: manipulation;
+}
+
+.shellLandscape .fab {
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Backdrop (shared: drawer + sheet) ──────────────────────────── */
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  z-index: 50;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ── Drawer (right slide-in menu) ───────────────────────────────── */
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(85vw, 340px);
+  background: var(--bg);
+  border-left: 1px solid var(--line-strong);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  /* visibility flips AFTER the slide-out so closed = untabbable/unclickable */
+  visibility: hidden;
+  transition: transform 180ms ease, visibility 0s linear 180ms;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
+}
+
+.shellLandscape .drawer {
+  width: min(85vw, 320px);
+}
+
+.drawerOpen {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 180ms ease;
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.drawerTitle {
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.drawerClose {
+  min-width: 44px;
+  min-height: 44px;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.drawerBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 10px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawerItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  padding: 0 14px;
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.drawerItem:active {
+  background: var(--line-soft);
+}
+
+.drawerItemHint {
+  font-size: 9px;
+  color: var(--fg-dim);
+  letter-spacing: 0.06em;
+}
+
+.drawerDanger {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.drawerSection {
+  font-size: 9px;
+  letter-spacing: 0.26em;
+  color: var(--fg-dim);
+  margin: 8px 0 0;
+}
+
+/* ── Bottom sheet ───────────────────────────────────────────────── */
+
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 62dvh;
+  background: var(--bg);
+  border-top: 1px solid var(--line-strong);
+  border-radius: 12px 12px 0 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  transition: height 160ms ease;
+  touch-action: none;
+}
+
+.sheetExpanded {
+  height: 90dvh;
+}
+
+.shellLandscape .sheet {
+  height: 88dvh;
+  left: auto;
+  width: min(70vw, 520px);
+  border-left: 1px solid var(--line-strong);
+  border-radius: 12px 0 0 0;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.sheetGrip {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 42px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.sheetTitle {
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  padding-top: 8px;
+}
+
+.sheetActions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.sheetBtn {
+  min-width: 44px;
+  min-height: 44px;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sheetBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+/* ── Landscape rails ────────────────────────────────────────────── */
+
+.railLeft {
+  width: 104px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+/* Compact metrics so the whole rail fits a 375–412px-tall phone. */
+.railLeft .play {
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+}
+
+.railLeft .bpmWrap {
+  width: 100%;
+  justify-content: center;
+}
+
+.railLeft .bpmInput {
+  width: 56px;
+  font-size: 17px;
+}
+
+.railLeft .status {
+  margin: 0 auto;
+}
+
+.railLeft .loopBtn {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  font-size: 12px;
+}
+
+.railLeft .trackTabs {
+  padding: 0;
+  gap: 4px;
+}
+
+.railMem .memSlot {
+  min-height: 30px;
+  font-size: 11px;
+}
+
+.railRight {
+  width: 92px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 64px;
+}
+
+.railPlay {
+  min-height: 52px;
+  font-size: 12px;
+}
+
+.railBpm {
+  width: 100%;
+  font-size: 20px;
+  text-align: center;
+}
+
+.railTrackTab {
+  min-height: 34px;
+  flex: none;
+}
+
+.railMem {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.railFx {
+  flex: 1;
+  min-height: 36px;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.railFxOn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.landscapeMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}

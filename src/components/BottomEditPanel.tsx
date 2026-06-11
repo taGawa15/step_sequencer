@@ -14,7 +14,7 @@ export type BottomTab =
   | 'sample'
   | 'debug';
 
-const TAB_LABEL: Record<BottomTab, string> = {
+export const TAB_LABEL: Record<BottomTab, string> = {
   mixer: 'MIXER',
   note: 'NOTE',
   step: 'STEP FX',

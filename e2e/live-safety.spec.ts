@@ -190,11 +190,19 @@ test.describe('filter sweep stress', () => {
 test.describe('phone landscape', () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  test('PerformancePanel bottom (COMP) is reachable by scrolling', async ({
+  test('performance mode: COMP reachable inside the FX sheet', async ({
     page,
   }) => {
     await page.goto('/');
-    const comp = page.getByText('COMP', { exact: true }).first();
+    await expect(page.getByTestId('mobile-shell')).toHaveAttribute(
+      'data-mode',
+      'mobileLandscape',
+    );
+    // FILTER quick-fx opens the FX MAIN sheet; COMP lives inside it.
+    await page.getByRole('button', { name: 'filter / fx main' }).click();
+    const sheet = page.getByTestId('bottom-sheet');
+    await expect(sheet).toBeVisible();
+    const comp = sheet.getByText('COMP', { exact: true }).first();
     await comp.scrollIntoViewIfNeeded();
     await expect(comp).toBeVisible();
   });

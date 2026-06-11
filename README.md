@@ -73,6 +73,19 @@ npm run test:e2e   # Playwright E2E(初回: npx playwright install chromium)
 ※ キー長押しによる連射(`e.repeat`)は全ショートカットで無効です。
 ※ ヘルプ表示中はグローバルショートカットが全て無効になり、Esc はヘルプを閉じるだけです(PANIC しません)。
 
+## スマホでの使い方(2.1 モバイル再設計)
+
+スマホ(幅 767px 以下/横向きで高さ 500px 未満)では PC の3カラムを縮小せず、**専用レイアウト**になります。
+
+- **縦向き**: コンパクト Transport(PLAY/BPM/AUDIO 状態/PANIC + SWING/VOL)→ **Step Grid が画面の 65〜75%** → DRUM/BASS/LEAD/SMPL トラックタブ → クイックバー(LOOP/MEMORY 1–4/SAVE/FOCUS)。グリッドは選択中グループのみ表示し、セルは縦長(高さ 55〜96px)でタップしやすく
+- **横向き = Performance Mode**: 左レール(PLAY/BPM/トラック/LOOP/MEM)+ **グリッド最大表示** + 右レールの Quick FX(FILTER/REPEAT/STUTTER/TAPE/THROW/FREEZE + PANIC)
+- **メニュー(≡ FAB)**: 右下の FAB でドロワーをスライド表示。FX/SAMPLE/MEMORY/NOTE/MIXER/SCENES/DEBUG は**ボトムシート**(初期 62%・▴で 90%・下スワイプ/背景タップ/Esc/CLOSE で閉じる)。シート内部のみスクロール可
+- **Mini Map**: ループが 17 ステップ以上のとき表示。現在ページ(枠)と再生中ページ(●)を示し、タップでページ移動
+- **Focus Mode**: クイックバー等を隠してグリッドに集中(EXIT FOCUS で復帰)
+- **Quick Memory**: タップ= LOAD(確認ガード設定に従う)。SAVE は「SAVE → スロット選択 → 上書き時は確認」の誤爆防止式
+- **ノート編集**: BASS/LEAD のステップを**もう一度タップ**すると NOTE シートが開きます
+- ドロワー/シート表示中も再生は継続し、Esc は PANIC ではなく「閉じる」になります
+
 ## Delay について(重要)
 
 **Delay はユーザーが操作した場合のみ音に反映されます。** 初期状態では
